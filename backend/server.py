@@ -25,6 +25,7 @@ _trace('module_loaded')
 
 
 def main():
+    os.environ.setdefault('GFORTRAN_STDIN_UNIT', '-1')
     for stream, kwargs in (
         (sys.stdin, {'encoding': 'utf-8'}),
         (sys.stdout, {'encoding': 'utf-8', 'line_buffering': True}),
@@ -43,14 +44,6 @@ def main():
     if len(token) < 32:
         raise ValueError('Missing desktop session credential')
 
-    def watch_parent():
-        while True:
-            line = sys.stdin.readline()
-            if not line or line.strip() == 'shutdown':
-                os._exit(0)
-    threading.Thread(target=watch_parent, daemon=True).start()
-    _trace('watch_parent_started')
-
     if _TRACE_BOOT:
         faulthandler.dump_traceback_later(15, repeat=True, file=sys.stderr)
 
@@ -61,6 +54,17 @@ def main():
     _trace('imported_microscopy_app')
     if _TRACE_BOOT:
         faulthandler.cancel_dump_traceback_later()
+
+    # Start stdin EOF/shutdown watcher only after native extensions (NumPy/OpenBLAS/libgfortran)
+    # finish loading; a background ReadFile on fd 0 can deadlock Windows DllMain initialization.
+    def watch_parent():
+        while True:
+            line = sys.stdin.readline()
+            if not line or line.strip() == 'shutdown':
+                os._exit(0)
+    threading.Thread(target=watch_parent, daemon=True).start()
+    _trace('watch_parent_started')
+
     app.server.config['MAX_CONTENT_LENGTH'] = 256 * 1024 * 1024
 
     @app.server.before_request
