@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+ <defs>
+  <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#153e68"/><stop offset="1" stop-color="#071829"/></linearGradient>
+  <linearGradient id="optic" x2="0.8" y2="1"><stop stop-color="#b1f8ff"/><stop offset=".5" stop-color="#39cde5"/><stop offset="1" stop-color="#19aaa6"/></linearGradient>
+  <radialGradient id="glow"><stop stop-color="#36d4cb" stop-opacity=".25"/><stop offset="1" stop-color="#36d4cb" stop-opacity="0"/></radialGradient>
+ </defs>
+ <rect x="48" y="48" width="928" height="928" rx="210" fill="url(#bg)"/>
+ <rect x="63" y="63" width="898" height="898" rx="196" fill="none" stroke="#6ce7f2" stroke-opacity=".2" stroke-width="4"/>
+ <circle cx="590" cy="510" r="380" fill="url(#glow)"/>
+ <g fill="none" stroke="#45c7d5" stroke-width="8" opacity=".34">
+  <path d="M516 360h322M516 444h322M516 528h322M516 612h322M516 696h322M516 360v336M600 360v336M684 360v336M768 360v336M838 360v336"/>
+ </g>
+ <g fill="none" stroke="url(#optic)" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M320 278l82-82 178 178-82 82z" fill="#153b54" stroke-width="29"/>
+  <path d="M467 425l-41 41" stroke-width="36"/>
+  <path d="M346 359c-132 96-149 281 2 365 56 31 136 31 187 31" stroke-width="54"/>
+  <path d="M377 573h262M466 573v71M284 799h419" stroke-width="38"/>
+ </g>
+ <circle cx="303" cy="485" r="45" fill="#102c47" stroke="#8eeef4" stroke-width="19"/>
+ <circle cx="303" cy="485" r="12" fill="#30d4ca"/>
+ <rect x="565" y="451" width="80" height="80" rx="12" fill="#42e2cd" opacity=".95"/>
+ <path d="M585 491l14 14 26-29" fill="none" stroke="#0d3348" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

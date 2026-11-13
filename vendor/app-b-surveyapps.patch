@@ -1,0 +1,310 @@
+--- a/microscopy_app.py
++++ b/microscopy_app.py
+@@ -1,28 +1,32 @@
++"""SurveyApps runtime copy of the pinned Microscopy Grid Overlay source.
++Owns the existing Dash UI and scientific callbacks. Local changes are documented
++in docs/UPSTREAM_CHANGES.md; the exact original remains in vendor/microscopy/.
++"""
+ import dash
+ from dash import dcc, html, Input, Output, State, callback_context
+ import plotly.graph_objects as go
+ from PIL import Image, ImageDraw, ImageFont, ImageOps
+-Image.MAX_IMAGE_PIXELS = None
++Image.MAX_IMAGE_PIXELS = 100_000_000
++import warnings
++warnings.simplefilter("error", Image.DecompressionBombWarning)
+ import numpy as np
+-import requests
+ from io import BytesIO
+ import base64
+ import json
+ import string
+ 
+-app = dash.Dash(__name__, title="Microscopy Grid Aligner")
+-
+-# ── Load sample image ──────────────────────────────────────────────────
+-try:
+-    url = "https://raw.githubusercontent.com/scikit-image/scikit-image/main/skimage/data/immunohistochemistry.png"
+-    response = requests.get(url, timeout=5)
+-    original_image = ImageOps.exif_transpose(Image.open(BytesIO(response.content))).convert('RGB')
+-except Exception:
+-    img_array = np.zeros((800, 800, 3), dtype=np.uint8)
+-    for i in range(0, 800, 80):
+-        img_array[i:i+40, :] = [50, 0, 100]
+-        img_array[:, i:i+40] = [0, 100, 50]
+-    original_image = Image.fromarray(img_array)
++from pathlib import Path
++app = dash.Dash(__name__, title="SurveyApps! · Fluorescence Lab",
++                assets_folder=str(Path(__file__).parent / 'assets'),
++                serve_locally=True, update_title="Processing…")
++
++# Deterministic offline demonstration image; never downloads remote data.
++img_array = np.zeros((800, 800, 3), dtype=np.uint8)
++for i in range(0, 800, 80):
++    img_array[i:i+40, :] = [50, 0, 100]
++    img_array[:, i:i+40] = [0, 100, 50]
++original_image = Image.fromarray(img_array)
++_raw_uploaded_image = None
+ 
+ # ── Rotation cache ─────────────────────────────────────────────────────
+ _rotation_cache = {}
+@@ -105,7 +109,8 @@
+ 
+     # Left Control Panel
+     html.Div([
+-        html.H2("Microscopy Aligner", style={
++        html.Div('RGB channel intensity • 8-bit (0–255). Upload your own image; the initial grid is a synthetic demonstration. Recompute after alignment changes.', className='survey-note'),
++        html.H2("Fluorescence Lab", style={
+             'color': '#ffffff', 'margin': '0 0 15px 0',
+             'fontFamily': 'sans-serif', 'fontSize': '1.4em'
+         }),
+@@ -364,7 +369,7 @@
+             config={'displayModeBar': False}
+         ),
+ 
+-    ], style={
++    ], className='survey-controls', style={
+         'width': '28%', 'height': '100vh', 'padding': '20px',
+         'boxSizing': 'border-box', 'display': 'inline-block',
+         'verticalAlign': 'top', 'backgroundColor': '#1e1e1e',
+@@ -382,7 +387,7 @@
+                 'modeBarButtonsToRemove': ['lasso2d', 'select2d'],
+             }
+         )
+-    ], style={
++    ], className='survey-image', style={
+         'width': '72%', 'height': '100vh',
+         'display': 'inline-block', 'verticalAlign': 'top',
+         'backgroundColor': '#000000'
+@@ -428,7 +433,7 @@
+                 _raw_uploaded_image = img
+                 _uploaded_image = img.copy()
+             except Exception:
+-                pass
++                return tuple([dash.no_update] * 9 + ['Could not read this image. Choose a valid TIFF, PNG or JPEG (up to 100 million pixels).'])
+         else:
+             _raw_uploaded_image = None
+             _uploaded_image = None
+@@ -458,6 +463,10 @@
+             else:
+                 _uploaded_image = _uploaded_image.crop((left, top, right, bottom))
+     
++    # A crop/upload changes pixel content; old previews must not survive id reuse.
++    if trigger_id != 'rotation-slider.value':
++        _rotation_cache.clear()
++
+     # Always generate rotated data
+     current = _uploaded_image if _uploaded_image is not None else original_image
+     data = _get_rotated_data(current, rotation)
+@@ -738,8 +747,11 @@
+ )
+ 
+ # ── Helper: compute grid positions ─────────────────────────────────────
+-def _grid_positions(spacing, offset_x, offset_y, w, h):
++def _grid_positions(spacing, offset_x, offset_y, w, h, spacing_y=None):
+     """Return lists of x and y grid line positions."""
++    spacing_y = spacing if spacing_y is None else spacing_y
++    if not all(np.isfinite(v) for v in (spacing, spacing_y, offset_x, offset_y)) or min(spacing, spacing_y) < 1:
++        raise ValueError("Grid spacing must be finite and at least one pixel")
+     x_pos = []
+     sx = offset_x % spacing
+     x = sx
+@@ -747,11 +759,11 @@
+         x_pos.append(x)
+         x += spacing
+     y_pos = []
+-    sy = offset_y % spacing
++    sy = offset_y % spacing_y
+     y = sy
+     while y < h:
+         y_pos.append(y)
+-        y += spacing
++        y += spacing_y
+     return x_pos, y_pos
+ 
+ 
+@@ -764,10 +776,12 @@
+      State('grid-x-offset-slider', 'value'),
+      State('grid-y-offset-slider', 'value'),
+      State('center-point-store', 'data'),
+-     State('fluor-channel', 'value')],
++     State('fluor-channel', 'value'),
++     State('grid-y-spacing-slider', 'value'),
++     State('link-spacing-check', 'value')],
+     prevent_initial_call=True
+ )
+-def compute_fluorescence(n_clicks, rotation, spacing, offset_x, offset_y, center_point, channel):
++def compute_fluorescence(n_clicks, rotation, spacing, offset_x, offset_y, center_point, channel, spacing_y=None, link_spacing=None):
+     cx = center_point.get('x', 0) if center_point else 0
+     cy = center_point.get('y', 0) if center_point else 0
+     true_offset_x = cx + offset_x
+@@ -777,7 +791,8 @@
+     rotated = _get_rotated_pil(current, rotation)
+     arr = np.array(rotated)
+     w, h = rotated.size
+-    x_pos, y_pos = _grid_positions(spacing, true_offset_x, true_offset_y, w, h)
++    spacing_y = spacing if spacing_y is None or 'link' in (link_spacing or []) else spacing_y
++    x_pos, y_pos = _grid_positions(spacing, true_offset_x, true_offset_y, w, h, spacing_y)
+ 
+     n_rows = max(0, len(y_pos) - 1)
+     n_cols = max(0, len(x_pos) - 1)
+@@ -879,8 +894,8 @@
+     fig.update_layout(
+         paper_bgcolor='#1e1e1e',
+         plot_bgcolor='#1e1e1e',
+-        xaxis={'title': 'Column', 'side': 'top', 'tickfont': {'color': '#ccc', 'size': 9}, 'titlefont': {'color': '#aaa', 'size': 10}},
+-        yaxis={'title': 'Row', 'autorange': 'reversed', 'tickfont': {'color': '#ccc', 'size': 9}, 'titlefont': {'color': '#aaa', 'size': 10}},
++        xaxis={'title': {'text': 'Column', 'font': {'color': '#aaa', 'size': 10}}, 'side': 'top', 'tickfont': {'color': '#ccc', 'size': 9}},
++        yaxis={'title': {'text': 'Row', 'font': {'color': '#aaa', 'size': 10}}, 'autorange': 'reversed', 'tickfont': {'color': '#ccc', 'size': 9}},
+         margin={'l': 30, 'r': 10, 't': 35, 'b': 20}
+     )
+     return fig
+@@ -892,13 +907,18 @@
+     [Input('image-store', 'data'),
+      Input('grid-spacing-slider', 'value'),
+      Input('grid-x-offset-slider', 'value'),
+-     Input('grid-y-offset-slider', 'value')]
+-)
+-def update_well_options(img_data, spacing, offset_x, offset_y):
++     Input('grid-y-offset-slider', 'value'),
++     Input('grid-y-spacing-slider', 'value'),
++     Input('link-spacing-check', 'value'),
++     Input('center-point-store', 'data')]
++)
++def update_well_options(img_data, spacing, offset_x, offset_y, spacing_y=None, link_spacing=None, center_point=None):
+     if not img_data:
+         return []
+     w, h = img_data['w'], img_data['h']
+-    x_pos, y_pos = _grid_positions(spacing, offset_x, offset_y, w, h)
++    x_pos, y_pos = _grid_positions(spacing, offset_x + (center_point or {}).get('x', 0),
++                                            offset_y + (center_point or {}).get('y', 0), w, h,
++                                            spacing if spacing_y is None or 'link' in (link_spacing or []) else spacing_y)
+     n_rows = max(0, len(y_pos) - 1)
+     n_cols = max(0, len(x_pos) - 1)
+     
+@@ -924,18 +944,25 @@
+      State('rotation-slider', 'value'),
+      State('grid-spacing-slider', 'value'),
+      State('grid-x-offset-slider', 'value'),
+-     State('grid-y-offset-slider', 'value')],
++     State('grid-y-offset-slider', 'value'),
++     State('grid-y-spacing-slider', 'value'),
++     State('link-spacing-check', 'value'),
++     State('center-point-store', 'data')],
+     prevent_initial_call=True
+ )
+-def crop_well(n_clicks, well_value, rotation, spacing, offset_x, offset_y):
++def crop_well(n_clicks, well_value, rotation, spacing, offset_x, offset_y, spacing_y=None, link_spacing=None, center_point=None):
+     if not well_value:
+         raise dash.exceptions.PreventUpdate
+     r, c = [int(v) for v in well_value.split(',')]
+     current = _uploaded_image if _uploaded_image is not None else original_image
+     rotated = _get_rotated_pil(current, rotation)
+     w, h = rotated.size
+-    x_pos, y_pos = _grid_positions(spacing, offset_x, offset_y, w, h)
+-
++    x_pos, y_pos = _grid_positions(spacing, offset_x + (center_point or {}).get('x', 0),
++                                            offset_y + (center_point or {}).get('y', 0), w, h,
++                                            spacing if spacing_y is None or 'link' in (link_spacing or []) else spacing_y)
++
++    if not (0 <= r < len(y_pos)-1 and 0 <= c < len(x_pos)-1):
++        raise dash.exceptions.PreventUpdate
+     x0 = int(round(x_pos[c]))
+     x1 = int(round(x_pos[c + 1]))
+     y0 = int(round(y_pos[r]))
+@@ -974,10 +1001,13 @@
+      State('grid-x-offset-slider', 'value'),
+      State('grid-y-offset-slider', 'value'),
+      State('grid-opacity-slider', 'value'),
+-     State('show-labels-check', 'value')],
++     State('show-labels-check', 'value'),
++     State('grid-y-spacing-slider', 'value'),
++     State('link-spacing-check', 'value'),
++     State('center-point-store', 'data')],
+     prevent_initial_call=True
+ )
+-def save_grid(n_clicks, rotation, spacing, offset_x, offset_y, opacity, show_labels):
++def save_grid(n_clicks, rotation, spacing, offset_x, offset_y, opacity, show_labels, spacing_y=None, link_spacing=None, center_point=None):
+     current = _uploaded_image if _uploaded_image is not None else original_image
+     rotated = _get_rotated_pil(current, rotation)
+     w, h = rotated.size
+@@ -986,7 +1016,9 @@
+     alpha = int(opacity * 255)
+     color = (0, 255, 255, alpha)
+ 
+-    col_positions, row_positions = _grid_positions(spacing, offset_x, offset_y, w, h)
++    col_positions, row_positions = _grid_positions(spacing, offset_x + (center_point or {}).get('x', 0),
++                                            offset_y + (center_point or {}).get('y', 0), w, h,
++                                            spacing if spacing_y is None or 'link' in (link_spacing or []) else spacing_y)
+     for x in col_positions:
+         draw.line([(x, 0), (x, h)], fill=color, width=2)
+     for y in row_positions:
+@@ -1025,10 +1057,13 @@
+      State('grid-opacity-slider', 'value'),
+      State('show-labels-check', 'value'),
+      State('fluor-store', 'data'),
+-     State('show-fluor-check', 'value')],
++     State('show-fluor-check', 'value'),
++     State('grid-y-spacing-slider', 'value'),
++     State('link-spacing-check', 'value'),
++     State('center-point-store', 'data')],
+     prevent_initial_call=True
+ )
+-def save_merged(n_clicks, rotation, spacing, offset_x, offset_y, opacity, show_labels, fluor_data, show_fluor):
++def save_merged(n_clicks, rotation, spacing, offset_x, offset_y, opacity, show_labels, fluor_data, show_fluor, spacing_y=None, link_spacing=None, center_point=None):
+     current = _uploaded_image if _uploaded_image is not None else original_image
+     rotated = _get_rotated_pil(current, rotation)
+     w, h = rotated.size
+@@ -1039,7 +1074,9 @@
+     alpha = int(opacity * 255)
+     color = (0, 255, 255, alpha)
+ 
+-    col_positions, row_positions = _grid_positions(spacing, offset_x, offset_y, w, h)
++    col_positions, row_positions = _grid_positions(spacing, offset_x + (center_point or {}).get('x', 0),
++                                            offset_y + (center_point or {}).get('y', 0), w, h,
++                                            spacing if spacing_y is None or 'link' in (link_spacing or []) else spacing_y)
+     for x in col_positions:
+         draw.line([(x, 0), (x, h)], fill=color, width=2)
+     for y in row_positions:
+@@ -1192,7 +1229,21 @@
+         _, content_string = contents.split(',')
+         decoded = base64.b64decode(content_string).decode('utf-8')
+         s = json.loads(decoded)
++        if not isinstance(s, dict):
++            raise ValueError('Settings must be a JSON object')
++        bounds = {'rotation': (-180, 180), 'grid_spacing': (1, 10000),
++                  'grid_y_spacing': (1, 10000), 'grid_x_offset': (-100000, 100000),
++                  'grid_y_offset': (-100000, 100000), 'grid_opacity': (0, 1),
++                  'crop_top': (0, 99), 'crop_bottom': (0, 99), 'crop_left': (0, 99), 'crop_right': (0, 99)}
++        for key, (lo, hi) in bounds.items():
++            if key in s and (not isinstance(s[key], (int, float)) or not np.isfinite(s[key]) or not lo <= s[key] <= hi):
++                raise ValueError(f'Invalid {key}')
++        for key, allowed in [('link_spacing', 'link'), ('show_labels', 'show')]:
++            if key in s and (not isinstance(s[key], list) or any(x != allowed for x in s[key])):
++                raise ValueError(f'Invalid {key}')
+         cp = s.get('center_point', {'x': 0.0, 'y': 0.0})
++        if not isinstance(cp, dict) or any(not isinstance(cp.get(k, 0), (int, float)) or not np.isfinite(cp.get(k, 0)) for k in ('x', 'y')):
++            raise ValueError('Invalid center point')
+         return (
+             s.get('rotation', 0),
+             s.get('grid_spacing', 229),
+@@ -1335,6 +1386,19 @@
+ 
+ 
+ 
++
++# SurveyApps: computed values belong to one exact image/alignment/channel.
++@app.callback(
++    Output('fluor-store', 'data', allow_duplicate=True),
++    [Input('image-store', 'data'), Input('grid-spacing-slider', 'value'),
++     Input('grid-y-spacing-slider', 'value'), Input('link-spacing-check', 'value'),
++     Input('grid-x-offset-slider', 'value'), Input('grid-y-offset-slider', 'value'),
++     Input('center-point-store', 'data'), Input('fluor-channel', 'value')],
++    prevent_initial_call=True
++)
++def invalidate_fluorescence(*_):
++    return None
++
+ if __name__ == '__main__':
+     import sys
+     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8050

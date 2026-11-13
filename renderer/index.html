@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-src 'self' http://127.0.0.1:* http://localhost:* file:;">
+  <title>SurveyApps! — Scientific Microscopy &amp; Microfluidic Grid Suite</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app-shell" class="app-shell" data-view="home" data-sidebar="expanded">
+    <!-- Accessible Skip Link -->
+    <a class="skip-link" href="#main-workspace">Skip to main workspace</a>
+
+    <!-- Left Navigation Sidebar -->
+    <aside class="sidebar" aria-label="Primary Navigation">
+      <div class="sidebar-brand">
+        <div class="brand-logo-wrap" aria-hidden="true">
+          <img
+            id="brand-logo"
+            class="brand-logo"
+            src="../assets/icon.svg"
+            alt=""
+          >
+          <svg class="brand-logo-fallback" viewBox="0 0 36 36" fill="none" aria-hidden="true">
+            <rect x="2" y="2" width="32" height="32" rx="8" fill="#0d2238" stroke="#22d3ee" stroke-width="1.75"/>
+            <path d="M9 13h18M9 18h18M9 23h18M13 9v18M18 9v18M23 9v18" stroke="#0ea5e9" stroke-width="1.3" stroke-opacity="0.75"/>
+            <circle cx="18" cy="18" r="6.5" stroke="#2dd4bf" stroke-width="1.8" fill="#0ea5e9" fill-opacity="0.15"/>
+            <circle cx="18" cy="18" r="2.2" fill="#22d3ee"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-name">SurveyApps!</span>
+          <span class="brand-subtitle">Microscopy Suite <span id="app-version" class="version-pill" title="Application version">v1.0.0</span></span>
+        </div>
+        <button
+          id="sidebar-toggle"
+          class="icon-btn sidebar-toggle"
+          type="button"
+          aria-label="Toggle compact sidebar"
+          aria-expanded="true"
+          title="Toggle compact sidebar (Ctrl+B / ⌘B)"
+        >
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <rect x="2.5" y="3.5" width="15" height="13" rx="2" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M7.5 3.5v13" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+        </button>
+      </div>
+
+      <nav class="sidebar-nav" aria-label="Workspace Views">
+        <button
+          type="button"
+          class="nav-item is-active"
+          data-nav="home"
+          aria-current="page"
+          title="Overview &amp; Launchpad (Alt+1)"
+        >
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="none">
+              <path d="M3 9.2L10 3.5l7 5.7v6.8a1 1 0 0 1-1 1h-4.2v-4.5H8.2V17H4a1 1 0 0 1-1-1V9.2z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span class="nav-label">Dashboard</span>
+        </button>
+
+        <div class="nav-section-label">Scientific Tools</div>
+
+        <button
+          type="button"
+          class="nav-item"
+          data-nav="grid"
+          title="Grid Studio — Optical Calibration &amp; Chip Overlay (Alt+2)"
+        >
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="none">
+              <rect x="3" y="3" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/>
+              <path d="M3 7.67h14M3 12.33h14M7.67 3v14M12.33 3v14" stroke="currentColor" stroke-width="1.3"/>
+            </svg>
+          </span>
+          <span class="nav-label-group">
+            <span class="nav-label">Grid Studio</span>
+            <span class="nav-sub">Chip &amp; Lens Alignment</span>
+          </span>
+          <span id="nav-badge-grid" class="status-dot is-ready" title="Grid Studio ready"></span>
+        </button>
+
+        <button
+          type="button"
+          class="nav-item"
+          data-nav="microscopy"
+          title="Fluorescence Lab — Well Intensity &amp; Heatmap Analysis (Alt+3)"
+        >
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="6.8" stroke="currentColor" stroke-width="1.6"/>
+              <circle cx="10" cy="10" r="2.8" fill="currentColor" fill-opacity="0.35" stroke="currentColor" stroke-width="1.3"/>
+              <path d="M10 1.8v2M10 16.2v2M1.8 10h2M16.2 10h2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="nav-label-group">
+            <span class="nav-label">Fluorescence Lab</span>
+            <span class="nav-sub">Well Matrix &amp; Channels</span>
+          </span>
+          <span id="nav-badge-microscopy" class="status-dot is-starting" title="Checking analysis service"></span>
+        </button>
+
+        <div class="nav-section-label">Documentation</div>
+
+        <button
+          type="button"
+          class="nav-item"
+          data-nav="help"
+          title="Methods, Shortcuts &amp; Offline Privacy Guide (Alt+4)"
+        >
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="7.2" stroke="currentColor" stroke-width="1.6"/>
+              <path d="M8.3 7.9a1.8 1.8 0 1 1 2.4 1.7c-.6.25-.9.65-.9 1.3v.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+              <circle cx="10" cy="14" r="0.9" fill="currentColor"/>
+            </svg>
+          </span>
+          <span class="nav-label">Help &amp; Reference</span>
+        </button>
+      </nav>
+
+      <!-- Runtime Status Footer in Sidebar -->
+      <div class="sidebar-footer" role="region" aria-label="System Runtime Status">
+        <div class="runtime-card">
+          <div class="runtime-header">
+            <span id="sidebar-status-dot" class="status-dot is-starting" aria-hidden="true"></span>
+            <span id="sidebar-status-title" class="runtime-title">Starting…</span>
+          </div>
+          <p id="sidebar-status-msg" class="runtime-msg" aria-live="polite">
+            Preparing local workspace…
+          </p>
+          <div class="runtime-actions">
+            <button
+              id="sidebar-retry-btn"
+              type="button"
+              class="btn btn-xs btn-outline hidden"
+            >
+              Retry Lab
+            </button>
+            <span class="privacy-chip" title="All image processing and calculations run strictly on your computer">
+              <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M8 1.8L3 4v3.8c0 3.2 2.1 5.9 5 6.6 2.9-.7 5-3.4 5-6.6V4L8 1.8z" stroke="currentColor" stroke-width="1.3"/>
+              </svg>
+              <span>Offline</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace Area -->
+    <div class="workspace-column">
+      <!-- Slim Contextual Top Bar (auto-compacts in tool views so iframes get maximum space) -->
+      <header class="workspace-topbar" aria-label="Workspace Header">
+        <div class="topbar-left">
+          <button
+            id="mobile-menu-btn"
+            class="icon-btn mobile-only"
+            type="button"
+            aria-label="Toggle navigation menu"
+          >
+            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <div class="breadcrumb">
+            <span class="breadcrumb-suite">SurveyApps!</span>
+            <span class="breadcrumb-sep" aria-hidden="true">/</span>
+            <h1 id="topbar-title" class="breadcrumb-current">Dashboard</h1>
+          </div>
+          <span id="topbar-subtitle" class="topbar-subtitle">
+            Microfluidic chip alignment and well fluorescence analysis
+          </span>
+        </div>
+
+        <div class="topbar-right">
+          <div id="topbar-tool-controls" class="topbar-tool-controls hidden">
+            <span class="session-preserved-badge" title="Your current tool session remains active while switching views">
+              <span class="pulse-indicator" aria-hidden="true"></span>
+              Session Active
+            </span>
+            <button
+              id="reload-active-tool-btn"
+              type="button"
+              class="btn btn-xs btn-ghost"
+              title="Reload the current tool (resets unsaved changes in this tool)"
+            >
+              Reload Tool
+            </button>
+          </div>
+
+          <div id="bridge-status-pill" class="status-pill is-starting" role="status" aria-live="polite">
+            <span id="pill-dot" class="status-dot is-starting" aria-hidden="true"></span>
+            <span id="pill-text">Starting…</span>
+          </div>
+
+          <button
+            id="topbar-retry-btn"
+            type="button"
+            class="btn btn-xs btn-accent hidden"
+          >
+            Retry Lab
+          </button>
+        </div>
+      </header>
+
+      <!-- Desktop-Only Fallback Banner (only shown if desktop bridge is absent) -->
+      <div id="fallback-banner" class="fallback-banner hidden" role="alert">
+        <div class="fallback-banner-content">
+          <svg class="fallback-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M10 2.5L1.8 16.5h16.4L10 2.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+            <path d="M10 8v4M10 14.2v.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <div>
+            <strong>Standalone Preview Mode:</strong>
+            <span>
+              Launch the <strong>SurveyApps!</strong> desktop app to use <strong>Fluorescence Lab</strong>.
+              <strong>Grid Studio</strong> remains available in this window.
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Content Container -->
+      <main id="main-workspace" class="main-workspace" tabindex="-1">
+        <!-- ==================== VIEW 1: HOME DASHBOARD ==================== -->
+        <section
+          id="view-home"
+          class="view-panel is-active"
+          aria-labelledby="home-heading"
+        >
+          <div class="dashboard-scroll">
+            <!-- Hero Banner with Scientific SVG Art -->
+            <div class="hero-card">
+              <div class="hero-copy">
+                <div class="hero-eyebrow">
+                  <span class="eyebrow-tag">OFFLINE MICROSCOPY WORKSPACE</span>
+                  <span class="eyebrow-divider" aria-hidden="true">•</span>
+                  <span id="hero-status-summary">Preparing Workspace…</span>
+                </div>
+                <h2 id="home-heading" class="hero-title">
+                  Microfluidic Grid Calibration &amp; Well Fluorescence Analysis
+                </h2>
+                <p class="hero-description">
+                  Align microscope images to calibrated microfluidic chip geometries in <strong>Grid Studio</strong>,
+                  or measure per-well channel intensities and heatmaps in <strong>Fluorescence Lab</strong>.
+                  Both tools keep your active session while you switch views.
+                </p>
+                <div class="hero-actions">
+                  <button type="button" class="btn btn-primary" data-launch="grid">
+                    <span>Open Grid Studio</span>
+                    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                      <path d="M3.5 8h9M8.5 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                  <button type="button" class="btn btn-secondary" data-launch="microscopy">
+                    <span>Open Fluorescence Lab</span>
+                    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                      <path d="M3.5 8h9M8.5 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                  <button type="button" class="btn btn-ghost" data-launch="help">
+                    <span>Help &amp; Shortcuts</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Scientific Optical Grid & Fluorescence Matrix SVG Illustration -->
+              <div class="hero-visual" aria-hidden="true">
+                <svg class="scientific-illustration" viewBox="0 0 320 220" fill="none">
+                  <defs>
+                    <linearGradient id="bgGrad" x1="0" y1="0" x2="320" y2="220" gradientUnits="userSpaceOnUse">
+                      <stop offset="0%" stop-color="#0a192c"/>
+                      <stop offset="100%" stop-color="#072235"/>
+                    </linearGradient>
+                    <radialGradient id="fluorGlow" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stop-color="#2dd4bf" stop-opacity="0.45"/>
+                      <stop offset="60%" stop-color="#0ea5e9" stop-opacity="0.15"/>
+                      <stop offset="100%" stop-color="#0ea5e9" stop-opacity="0"/>
+                    </radialGradient>
+                  </defs>
+                  <rect x="4" y="4" width="312" height="212" rx="12" fill="url(#bgGrad)" stroke="#1e3a5f" stroke-width="1.5"/>
+                  <circle cx="195" cy="110" r="82" fill="url(#fluorGlow)"/>
+
+                  <!-- Left: Distorted raw lattice vs corrected grid -->
+                  <g opacity="0.45" stroke="#38bdf8" stroke-width="1" stroke-dasharray="3 3">
+                    <path d="M26 42 Q80 54 134 42"/>
+                    <path d="M22 86 Q80 92 138 86"/>
+                    <path d="M22 134 Q80 128 138 134"/>
+                    <path d="M26 178 Q80 166 134 178"/>
+                    <path d="M34 34 Q46 110 34 186"/>
+                    <path d="M78 30 Q82 110 78 190"/>
+                    <path d="M122 34 Q110 110 122 186"/>
+                  </g>
+
+                  <!-- Right/Center: Calibrated Microfluidic Well Array -->
+                  <g transform="translate(116, 32)">
+                    <rect x="0" y="0" width="172" height="156" rx="6" fill="#061322" fill-opacity="0.7" stroke="#22d3ee" stroke-width="1.4"/>
+                    <!-- 4x3 microfluidic wells -->
+                    <rect x="14" y="14" width="30" height="30" rx="3" fill="#0ea5e9" fill-opacity="0.22" stroke="#38bdf8" stroke-width="1.2"/>
+                    <rect x="52" y="14" width="30" height="30" rx="3" fill="#2dd4bf" fill-opacity="0.65" stroke="#2dd4bf" stroke-width="1.2"/>
+                    <rect x="90" y="14" width="30" height="30" rx="3" fill="#0ea5e9" fill-opacity="0.38" stroke="#38bdf8" stroke-width="1.2"/>
+                    <rect x="128" y="14" width="30" height="30" rx="3" fill="#2dd4bf" fill-opacity="0.82" stroke="#5eead4" stroke-width="1.2"/>
+
+                    <rect x="14" y="52" width="30" height="30" rx="3" fill="#2dd4bf" fill-opacity="0.50" stroke="#2dd4bf" stroke-width="1.2"/>
+                    <rect x="52" y="52" width="30" height="30" rx="3" fill="#0ea5e9" fill-opacity="0.16" stroke="#38bdf8" stroke-width="1.2"/>
+                    <rect x="90" y="52" width="30" height="30" rx="3" fill="#2dd4bf" fill-opacity="0.90" stroke="#99f6e4" stroke-width="1.4"/>
+                    <rect x="128" y="52" width="30" height="30" rx="3" fill="#0ea5e9" fill-opacity="0.30" stroke="#38bdf8" stroke-width="1.2"/>
+
+                    <rect x="14" y="90" width="30" height="30" rx="3" fill="#0ea5e9" fill-opacity="0.14" stroke="#38bdf8" stroke-width="1.2"/>
+                    <rect x="52" y="90" width="30" height="30" rx="3" fill="#2dd4bf" fill-opacity="0.72" stroke="#2dd4bf" stroke-width="1.2"/>
+                    <rect x="90" y="90" width="30" height="30" rx="3" fill="#2dd4bf" fill-opacity="0.44" stroke="#38bdf8" stroke-width="1.2"/>
+                    <rect x="128" y="90" width="30" height="30" rx="3" fill="#0ea5e9" fill-opacity="0.60" stroke="#22d3ee" stroke-width="1.2"/>
+
+                    <!-- Scale bar annotation inside illustration (fits cleanly inside 172px box) -->
+                    <line x1="14" y1="138" x2="54" y2="138" stroke="#e2e8f0" stroke-width="2"/>
+                    <line x1="14" y1="134" x2="14" y2="142" stroke="#e2e8f0" stroke-width="1.5"/>
+                    <line x1="54" y1="134" x2="54" y2="142" stroke="#e2e8f0" stroke-width="1.5"/>
+                    <text x="62" y="141" fill="#94a3b8" font-family="monospace" font-size="9.5">100 µm pitch</text>
+                  </g>
+
+                  <!-- Alignment vector arrows -->
+                  <path d="M58 110H108" stroke="#22d3ee" stroke-width="1.8" stroke-linecap="round"/>
+                  <path d="M102 105L109 110L102 115" stroke="#22d3ee" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+            </div>
+
+            <!-- Two Primary Tool Launch Cards -->
+            <div class="tool-cards-grid">
+              <!-- Card 1: Grid Studio -->
+              <article class="tool-card" aria-labelledby="card-grid-title">
+                <div class="tool-card-header">
+                  <div class="tool-icon-box is-cyan" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none">
+                      <rect x="3" y="3" width="18" height="18" rx="2.5" stroke="currentColor" stroke-width="1.8"/>
+                      <path d="M3 9h18M3 15h18M9 3v18M15 3v18" stroke="currentColor" stroke-width="1.5"/>
+                    </svg>
+                  </div>
+                  <div class="tool-header-meta">
+                    <div class="tool-title-row">
+                      <h3 id="card-grid-title" class="tool-card-title">Grid Studio</h3>
+                      <span id="card-grid-badge" class="badge badge-ready">Ready</span>
+                    </div>
+                    <p class="tool-upstream-name">Optical Correction &amp; Calibrated Chip Overlay</p>
+                  </div>
+                </div>
+
+                <p class="tool-card-body">
+                  Align microscope photos to a static, true-to-scale microfluidic chip overlay. Correct lens distortion and perspective warp, or run <strong>Auto-fit</strong> to match visible well arrays automatically.
+                </p>
+
+                <dl class="tool-spec-list">
+                  <div class="spec-item">
+                    <dt>Alignment</dt>
+                    <dd>Static reference grid; move, rotate, scale, lens-correct, and warp the image to fit.</dd>
+                  </div>
+                  <div class="spec-item">
+                    <dt>Calibration</dt>
+                    <dd>Chip presets V1–V15.2 with live <code>µm/px</code> readout, or custom manual grid dimensions.</dd>
+                  </div>
+                  <div class="spec-item">
+                    <dt>Export</dt>
+                    <dd>Full-resolution PNG of the corrected image, reference grid, or combined composite.</dd>
+                  </div>
+                </dl>
+
+                <div class="tool-card-footer">
+                  <button type="button" class="btn btn-primary btn-block" data-launch="grid">
+                    Launch Grid Studio
+                  </button>
+                </div>
+              </article>
+
+              <!-- Card 2: Fluorescence Lab -->
+              <article class="tool-card" aria-labelledby="card-microscopy-title">
+                <div class="tool-card-header">
+                  <div class="tool-icon-box is-teal" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/>
+                      <circle cx="12" cy="12" r="3.5" fill="currentColor" fill-opacity="0.25" stroke="currentColor" stroke-width="1.5"/>
+                      <path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                    </svg>
+                  </div>
+                  <div class="tool-header-meta">
+                    <div class="tool-title-row">
+                      <h3 id="card-microscopy-title" class="tool-card-title">Fluorescence Lab</h3>
+                      <span id="card-microscopy-badge" class="badge badge-starting">Starting…</span>
+                    </div>
+                    <p class="tool-upstream-name">Well Intensity Matrix &amp; Heatmap Analysis</p>
+                  </div>
+                </div>
+
+                <p class="tool-card-body">
+                  Place configurable X/Y grids over TIFF, PNG, or JPEG micrographs, compute per-well channel intensities across labeled wells (A1, B2…), inspect heatmaps, and export data.
+                </p>
+
+                <dl class="tool-spec-list">
+                  <div class="spec-item">
+                    <dt>Channels</dt>
+                    <dd>Grayscale mean, RGB, and fluorophore presets (DAPI, FITC/GFP, TRITC, Cy5, mCherry, CFP, YFP).</dd>
+                  </div>
+                  <div class="spec-item">
+                    <dt>Readout Scale</dt>
+                    <dd>Reports <strong>8-bit channel intensity (0–255)</strong>, not calibrated molar concentration.</dd>
+                  </div>
+                  <div class="spec-item">
+                    <dt>Exports</dt>
+                    <dd>Matrix CSV, cropped individual well PNGs, image/grid/merged PNGs, and JSON grid settings.</dd>
+                  </div>
+                </dl>
+
+                <div class="tool-card-footer">
+                  <button id="card-launch-microscopy-btn" type="button" class="btn btn-secondary btn-block" data-launch="microscopy">
+                    Launch Fluorescence Lab
+                  </button>
+                  <button id="card-retry-microscopy-btn" type="button" class="btn btn-accent hidden" data-action="retry-backend">
+                    Retry Lab
+                  </button>
+                </div>
+              </article>
+            </div>
+
+            <!-- Truthful Scientific Note & Workspace Status Strip -->
+            <div class="info-panels-row">
+              <div class="notice-card is-scientific">
+                <div class="notice-header">
+                  <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                    <path d="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 4v4.5m0 3v.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                  </svg>
+                  <h4>Measurement &amp; Calibration Note</h4>
+                </div>
+                <p>
+                  <strong>Fluorescence Lab</strong> reports mean <strong>8-bit RGB channel intensity (0–255)</strong> per well, not calibrated fluorophore concentration, and does not correct for exposure, gain, or illumination roll-off.
+                  In <strong>Grid Studio</strong>, the <code>µm/px</code> scale is calibrated only when the selected chip preset matches the imaged device.
+                </p>
+              </div>
+
+              <div class="notice-card is-runtime">
+                <div class="notice-header">
+                  <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                    <rect x="3" y="4" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.6"/>
+                    <path d="M7 8h6M7 12h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                  </svg>
+                  <h4>Workspace Status</h4>
+                </div>
+                <dl class="runtime-kv">
+                  <div>
+                    <dt>Fluorescence Lab</dt>
+                    <dd id="home-rt-state">Starting…</dd>
+                  </div>
+                  <div>
+                    <dt>Grid Studio</dt>
+                    <dd id="home-rt-grid">Ready</dd>
+                  </div>
+                  <div>
+                    <dt>Privacy &amp; Session</dt>
+                    <dd id="home-rt-message">Preparing local workspace…</dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== VIEW 2: GRID STUDIO (PERSISTENT IFRAME) ==================== -->
+        <section
+          id="view-grid"
+          class="view-panel view-iframe-host"
+          aria-label="Grid Studio Workspace"
+          hidden
+        >
+          <!-- State overlay shown only if Grid Studio URL fails or is initializing -->
+          <div id="grid-overlay" class="tool-state-overlay hidden" role="status" aria-live="polite">
+            <div class="state-dialog">
+              <div class="spinner" aria-hidden="true"></div>
+              <h3 id="grid-overlay-title">Loading Grid Studio…</h3>
+              <p id="grid-overlay-msg">Preparing optical calibration workspace…</p>
+            </div>
+          </div>
+
+          <iframe
+            id="frame-grid"
+            class="tool-iframe"
+            title="Grid Studio — Digital Microscope Gridoverlay Studio"
+            sandbox="allow-scripts allow-same-origin allow-downloads allow-forms allow-modals"
+          ></iframe>
+        </section>
+
+        <!-- ==================== VIEW 3: FLUORESCENCE LAB (PERSISTENT IFRAME) ==================== -->
+        <section
+          id="view-microscopy"
+          class="view-panel view-iframe-host"
+          aria-label="Fluorescence Lab Workspace"
+          hidden
+        >
+          <!-- Loading / Error / Retry overlay for Fluorescence Lab -->
+          <div id="microscopy-overlay" class="tool-state-overlay" role="status" aria-live="polite">
+            <div class="state-dialog">
+              <div id="microscopy-spinner" class="spinner" aria-hidden="true"></div>
+              <div id="microscopy-error-icon" class="error-icon-circle hidden" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/>
+                  <path d="M12 7.5v5.5M12 16v.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <h3 id="microscopy-overlay-title">Starting Fluorescence Lab…</h3>
+              <p id="microscopy-overlay-msg">
+                Preparing the local analysis workspace…
+              </p>
+              <div class="state-dialog-actions">
+                <button
+                  id="microscopy-retry-btn"
+                  type="button"
+                  class="btn btn-primary hidden"
+                >
+                  Retry Fluorescence Lab
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-ghost"
+                  data-launch="grid"
+                >
+                  Open Grid Studio
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <iframe
+            id="frame-microscopy"
+            class="tool-iframe"
+            title="Fluorescence Lab — Microscopy Grid Overlay"
+            sandbox="allow-scripts allow-same-origin allow-downloads allow-forms allow-modals"
+          ></iframe>
+        </section>
+
+        <!-- ==================== VIEW 4: HELP & SCIENTIFIC REFERENCE ==================== -->
+        <section
+          id="view-help"
+          class="view-panel"
+          aria-labelledby="help-heading"
+          hidden
+        >
+          <div class="help-scroll">
+            <header class="help-header">
+              <div>
+                <span class="eyebrow-tag">DOCUMENTATION &amp; METHODS</span>
+                <h2 id="help-heading">SurveyApps! Reference Guide</h2>
+                <p>
+                  Practical workflows, mathematical conventions, keyboard shortcuts, and privacy guarantees for both scientific tools.
+                </p>
+              </div>
+              <div class="help-quick-links">
+                <button type="button" class="btn btn-secondary" data-launch="grid">Open Grid Studio</button>
+                <button type="button" class="btn btn-secondary" data-launch="microscopy">Open Fluorescence Lab</button>
+              </div>
+            </header>
+
+            <div class="help-grid">
+              <!-- Section 1: Grid Studio Guide -->
+              <article class="help-card">
+                <h3>1. Grid Studio (Digital Microscope Gridoverlay Studio)</h3>
+                <p class="help-lead">
+                  Designed for aligning microscope photos of microfluidic chips to a precision reference grid so optical distortions can be removed before export.
+                </p>
+                <ul class="help-list">
+                  <li>
+                    <strong>Product Rule — Static Grid, Adjustable Image:</strong>
+                    The reference grid never moves with the photograph. Instead, you translate, scale, rotate, lens-correct, and warp the underlying micrograph until its physical wells align with the static overlay.
+                  </li>
+                  <li>
+                    <strong>Chip Presets &amp; True-to-Scale Geometry:</strong>
+                    When a chip version is selected, well width and pitch are scaled in micrometres (µm) using a shared factor <code>k</code> (canvas px per µm), preserving exact <code>well : wall : pitch</code> proportions where <code>pitch = well + wall</code>. With <em>Fit canvas to array</em> enabled, the document resizes to the exact <code>N × M</code> well array plus border margin.
+                  </li>
+                  <li>
+                    <strong>Lens &amp; Distortion Pipeline:</strong>
+                    Pass 1 applies inverse translation, rotation, scale, and radial fisheye correction
+                    <code>r' = r(1 − k₁r² − k₂r⁴)</code>. Pass 2 maps the corrected image onto a 32×32 mesh controlled by a 3×3 biquadratic patch (<strong>Distort</strong> tool).
+                  </li>
+                  <li>
+                    <strong>Computer-Vision Auto-Fit (Key <code>A</code>):</strong>
+                    Computes 2D FFT power spectra of image gradients <code>|gx|</code> and <code>|gy|</code> to find the fundamental well lattice frequency, performs complex phase demodulation and quality-guided flood-fill unwrapping, locates array boundaries, and solves for tilt, scale, translation, radial <code>k₁</code>, and corner warp. Auto-fit refuses rather than guesses if median residual error exceeds 10% of a period or fewer than 75% of samples match.
+                  </li>
+                  <li>
+                    <strong>GPU &amp; Software Renderers:</strong>
+                    Automatically uses WebGL2/WebGL1 hardware shaders and falls back seamlessly to a matching Canvas 2D software renderer if GPU acceleration is unavailable.
+                  </li>
+                </ul>
+              </article>
+
+              <!-- Section 2: Fluorescence Lab Guide -->
+              <article class="help-card">
+                <h3>2. Fluorescence Lab (Microscopy Grid Overlay)</h3>
+                <p class="help-lead">
+                  Built on Python (Dash, Plotly, Pillow, NumPy) for interactive orthogonal well framing, multi-channel pixel intensity calculation, heatmap visualization, and well cropping.
+                </p>
+                <ul class="help-list">
+                  <li>
+                    <strong>Supported Image Formats &amp; Orientation:</strong>
+                    Upload high-resolution <strong>TIFF</strong>, <strong>PNG</strong>, or <strong>JPEG</strong> microscopy images. Intrinsic EXIF orientation tags are respected on load, and image rotation is cached in memory for responsive slider feedback.
+                  </li>
+                  <li>
+                    <strong>Orthogonal Grid Alignment:</strong>
+                    Rotate the slide image beneath the orthogonal grid and tune <em>Grid Spacing</em>, <em>Grid X Offset</em>, <em>Grid Y Offset</em>, and line opacity until each well (A1, A2, B1…) frames its target sample region.
+                  </li>
+                  <li>
+                    <strong>Channel &amp; Fluorophore Selection:</strong>
+                    Choose <em>Mean Grayscale</em>, isolated RGB channels, or standard Echo fluorescence channel profiles (<strong>DAPI</strong>, <strong>FITC / GFP</strong>, <strong>TRITC / Texas Red</strong>, <strong>Cy5</strong>, <strong>mCherry</strong>, <strong>CFP</strong>, <strong>YFP</strong>) and click <strong>Compute Fluorescence</strong> to populate the interactive Plotly matrix heatmap.
+                  </li>
+                  <li>
+                    <strong>Truthful Quantitative Interpretation (8-Bit Channel Intensity):</strong>
+                    All computed matrix values are <strong>8-bit digital channel intensities (0–255)</strong> calculated from the image's pixel arrays. They are <strong>not calibrated physical concentrations</strong> (e.g., µM or ng/mL). For valid cross-image comparisons, keep microscope exposure, illumination intensity, camera gain, and file bit-depth conversion constant across your experiment.
+                  </li>
+                  <li>
+                    <strong>Exports &amp; Reproducibility:</strong>
+                    Export the well intensity matrix to <strong>CSV</strong>, crop and download individual labeled wells (e.g., <code>A1</code>, <code>B4</code>), download the composite Grid + Image PNG, or save/reload your grid configuration JSON.
+                  </li>
+                </ul>
+              </article>
+
+              <!-- Section 3: Keyboard Shortcuts -->
+              <article class="help-card">
+                <h3>3. Keyboard Shortcuts</h3>
+                <div class="shortcut-columns">
+                  <div>
+                    <h4>SurveyApps! Shell Navigation</h4>
+                    <table class="shortcut-table">
+                      <tbody>
+                        <tr><td><kbd>Alt</kbd> + <kbd>1</kbd></td><td>Dashboard Home</td></tr>
+                        <tr><td><kbd>Alt</kbd> + <kbd>2</kbd></td><td>Grid Studio</td></tr>
+                        <tr><td><kbd>Alt</kbd> + <kbd>3</kbd></td><td>Fluorescence Lab</td></tr>
+                        <tr><td><kbd>Alt</kbd> + <kbd>4</kbd></td><td>Help &amp; Reference</td></tr>
+                        <tr><td><kbd>⌘/Ctrl</kbd> + <kbd>B</kbd></td><td>Collapse / expand sidebar</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div>
+                    <h4>Grid Studio Canvas Controls</h4>
+                    <table class="shortcut-table">
+                      <tbody>
+                        <tr><td><kbd>V</kbd> / <kbd>D</kbd> / <kbd>C</kbd></td><td>Move / Distort / Crop tool</td></tr>
+                        <tr><td><kbd>A</kbd></td><td>Auto-fit image to ticked chip grid</td></tr>
+                        <tr><td><kbd>← → ↑ ↓</kbd></td><td>Nudge image 1 px (<kbd>Shift</kbd> ×10, <kbd>Alt</kbd> ×0.1)</td></tr>
+                        <tr><td><kbd>G</kbd> / <kbd>\</kbd></td><td>Toggle grid / Toggle original vs corrected</td></tr>
+                        <tr><td><kbd>R</kbd> / <kbd>M</kbd></td><td>Reset image / Centre image</td></tr>
+                        <tr><td><kbd>+</kbd> <kbd>−</kbd> / <kbd>F</kbd> / <kbd>1</kbd></td><td>Zoom in/out / Fit view / 100% zoom</td></tr>
+                        <tr><td><kbd>⌘/Ctrl</kbd> + <kbd>O</kbd> / <kbd>E</kbd></td><td>Open image / Export full-res PNG</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </article>
+
+              <!-- Section 4: Offline Privacy & Security Architecture -->
+              <article class="help-card">
+                <h3>4. Offline Privacy, Security &amp; Session Persistence</h3>
+                <ul class="help-list">
+                  <li>
+                    <strong>100% Offline Execution:</strong>
+                    SurveyApps! bundles all required front-end assets and the standalone Python scientific runtime locally. No internet connection is required, and no external CDN scripts, web fonts, or telemetry beacons are loaded.
+                  </li>
+                  <li>
+                    <strong>Zero External Data Transmission:</strong>
+                    Unpublished experimental micrographs, microfluidic chip designs, and fluorescence CSV exports remain strictly on your local filesystem.
+                  </li>
+                  <li>
+                    <strong>Isolated &amp; Authenticated Local Backend:</strong>
+                    The Electron main process spawns the frozen Python backend bound exclusively to loopback (<code>127.0.0.1</code>) on an OS-assigned ephemeral port with a per-launch authentication token, and terminates the child process cleanly when you quit the app.
+                  </li>
+                  <li>
+                    <strong>Persistent Tool Sessions:</strong>
+                    Once opened, both <strong>Grid Studio</strong> and <strong>Fluorescence Lab</strong> stay mounted in persistent background frames while you switch between Dashboard, tools, and Help—preserving your loaded micrographs, sliders, and computed heatmaps throughout your session.
+                  </li>
+                </ul>
+              </article>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

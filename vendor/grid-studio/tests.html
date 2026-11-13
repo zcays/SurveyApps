@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Self-tests</title>
+<style>body{font:13px/1.5 ui-monospace,Menlo,monospace;background:#1b1b1b;color:#d6d6d6;padding:16px}
+.ok{color:#34c759}.bad{color:#ff3b30;font-weight:700}h1{font:600 16px sans-serif}iframe{position:absolute;left:-9999px;width:1200px;height:800px}</style></head>
+<body><h1>Digital Microscope Gridoverlay Studio: self-tests</h1><div id="out">running…</div>
+<iframe id="app" src="index.html"></iframe>
+<!-- Loads the real app in a hidden iframe and checks its maths and behaviour through the app's own globals.
+     Open this page the same way as the app (double-click, or http://localhost:8765/tests.html). No libraries. -->
+<script>
+const frame = document.getElementById('app'), out = document.getElementById('out'), results = [];
+const run = (win, code) => win.eval(code);                       // top-level const/let of classic scripts are reachable via eval, not via win.X
+const near = (a, b, tol = 1e-6) => Math.abs(a - b) <= tol;
+function test(name, fn) { try { const r = fn(); results.push([name, r === undefined || r === true, r === false ? 'returned false' : '']); } catch (e) { results.push([name, false, e.message]); } }
+
+frame.onload = () => setTimeout(async () => {
+  const w = frame.contentWindow, E = code => run(w, code);
+  E('loadSample()');
+
+  // ---- chip table integrity (catches typos in presets.js) ----
+  for (const c of E('CHIPS')) {
+    test(`${c.id}: pitch = well + wall`, () => c.pitch === c.well + c.wall);
+    // the table rounds well counts down (V10.2: 66 x 120 = 7920 of 8000, V12: 49 x 200 = 9800 of 10000), so allow up to one pitch of slack
+    test(`${c.id}: wells x pitch fits the stated array size to within one pitch`, () => c.wide * c.pitch <= c.widthUm + 1e-9 && c.widthUm - c.wide * c.pitch <= c.pitch && c.long * c.pitch <= c.lengthUm + 1e-9 && c.lengthUm - c.long * c.pitch <= c.pitch);
+  }
+
+  // ---- true-to-scale grid: drawn well / pitch must equal the table's ratio, for every chip, fit and tiled ----
+  for (const fit of [true, false]) for (const c of E('CHIPS')) test(`${c.id}: well/pitch ratio exact (${fit ? 'fit' : 'tiled'})`, () => {
+    E(`S.chip.fit = ${fit}; selectChip(null); selectChip('${c.id}')`);
+    const L = E('gridLayout(S.doc.w, S.doc.h)'); return near(L.size / L.pitchX, c.well / c.pitch, 1e-9) && L.shape === c.shape;
+  });
+
+  // ---- fit mode: equal dead room on left/right and top/bottom, and the canvas hugs the array ----
+  E('S.chip.fit = true');
+  for (const c of E('CHIPS')) test(`${c.id}: array centred with equal borders`, () => {
+    E(`selectChip(null); selectChip('${c.id}')`);
+    const L = E('gridLayout(S.doc.w, S.doc.h)'), W = E('S.doc.w'), H = E('S.doc.h');
+    const right = W - (L.x0 + (L.i1 - 1) * L.pitchX + L.size), bottom = H - (L.y0 + (L.j1 - 1) * L.pitchY + L.size);
+    return near(L.x0, right, 1.5) && near(L.y0, bottom, 1.5) && L.x0 > 0 && L.i1 === c.wide && L.j1 === c.long;
+  });
+  E('selectChip(null)');
+  test('unticking a chip restores the canvas size', () => E('S.doc.w') === 1200 && E('S.doc.h') === 800);
+
+  // ---- image µm/px is preserved when the grid scale changes ----
+  test('µm/px stays constant when the grid scale changes (fit toggle)', () => {
+    E("selectChip('V3.1')"); const u = E('umPerPx()'); E('setChipFit(false)'); const u2 = E('umPerPx()'); E('setChipFit(true); selectChip(null)'); return near(u, u2, 1e-9);
+  });
+
+  // ---- distortion maths ----
+  test('warp: untouched = identity', () => !E('warpActive()') && near(E('warpPoint(.3, .7).x'), .3) && near(E('warpPoint(.3, .7).y'), .7));
+  test('warp: moving a corner changes it', () => { E('S.warp.c.se = {x: .9, y: .9}'); const a = E('warpActive()'); E('resetWarp()'); return a && !E('warpActive()'); });
+  test('warp: side handle moves both corners of its edge (drag simulation)', () => {
+    E("S.tool='warp'"); const d = E("dragTypes.warpEdge.start({target:{dataset:{w:'n'}}}, {x:600, y:0})");
+    E('dragTypes.warpEdge.move')(d, {}, {x: 600, y: 80});
+    const ok = near(E('S.warp.c.nw.y'), 80 / E('S.doc.h'), 1e-9) && near(E('S.warp.c.ne.y'), 80 / E('S.doc.h'), 1e-9); E('resetWarp()'); E("setTool('move')"); return ok;
+  });
+
+  // ---- keyboard ----
+  const key = (k, o = {}) => w.document.body.dispatchEvent(new w.KeyboardEvent('keydown', {key: k, bubbles: true, cancelable: true, ...o}));
+  test('arrow key nudges image 1 px, Shift 10 px', () => { const x = E('S.img.x'); key('ArrowRight'); key('ArrowRight', {shiftKey: true}); return near(E('S.img.x') - x, 11); });
+  test('G toggles grid, R resets image', () => { key('g'); const off = !E('S.grid.visible'); key('g'); key('r'); return off && E('S.grid.visible') && E('S.img.x') === 0; });
+  test('focused slider takes the arrow key (image does not move)', () => {
+    const r = [...w.document.querySelectorAll('.row')].find(r => r.children[0].textContent === 'Strength').children[1]; r.focus();
+    const x = E('S.img.x'), k = E('S.lens.k1'); r.dispatchEvent(new w.KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true, cancelable: true})); r.blur();
+    return E('S.img.x') === x && near(E('S.lens.k1') - k, .01, 1e-9);
+  });
+
+  // ---- export: must contain the image AND the grid (it once exported only the grid) ----
+  test('export contains image + grid; image-only has no grid; grid-only has no image', () => {
+    E("selectChip(null); S.grid.visible = true; S.grid.mode = 'filled'; S.grid.opacity = 1; S.grid.color = '#ff0000'; S.grid.mode = 'outline'; resetImageTransform(); resetWarp(); S.img.crop = null");
+    const pix = o => { const c = E(`buildExportCanvas(${JSON.stringify(o)})`), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let img = 0, red = 0;
+      for (let i = 0; i < d.length; i += 4) { if (d[i + 3] === 255 && !(d[i] > 200 && d[i + 1] < 60)) img++; if (d[i] > 200 && d[i + 1] < 60 && d[i + 2] < 60 && d[i + 3] > 200) red++; } return {img, red}; };
+    const both = pix({image: true, grid: true}), onlyImg = pix({image: true, grid: false}), onlyGrid = pix({image: false, grid: true});
+    return both.img > 100000 && both.red > 100 && onlyImg.red === 0 && onlyImg.img > 100000 && onlyGrid.img === 0 && onlyGrid.red > 100;
+  });
+  test('grid line width: slider value on a 1200 px canvas, scaled up on bigger canvases', () => {
+    const w = E('S.grid.stroke'); return near(E('gridLineWidth(1200)'), w) && near(E('gridLineWidth(2400)'), 2 * w) && near(E('gridLineWidth(600)'), w) && w === 2;
+  });
+  test('drawGrid paints over existing pixels instead of clearing them', () => {
+    const c = w.document.createElement('canvas'); c.width = 400; c.height = 400; const x = c.getContext('2d'); x.fillStyle = '#00ff00'; x.fillRect(0, 0, 400, 400);
+    E('S.grid.visible = true'); E('drawGrid')(x, 400, 400, 1); const d = x.getImageData(0, 0, 400, 400).data; let green = 0; for (let i = 0; i < d.length; i += 4) if (d[i] === 0 && d[i + 1] === 255 && d[i + 2] === 0) green++; return green > 20000;
+  });
+
+  // ---- crop ----
+  test('crop only masks the image: canvas and grid are unchanged, undo/reset restore it', () => {
+    const grid0 = JSON.stringify(E('gridLayout(S.doc.w, S.doc.h)')), doc0 = E('[S.doc.w, S.doc.h]').join('x');
+    E("setTool('crop'); S.crop = {x: 100, y: 100, w: 600, h: 400}; applyCrop()");
+    const c = E('S.img.crop');
+    const masked = c && near(c.x, 100) && near(c.y, 100) && near(c.w, 600) && near(c.h, 400);      // image at scale 1, no rotation → same numbers
+    const same = JSON.stringify(E('gridLayout(S.doc.w, S.doc.h)')) === grid0 && E('[S.doc.w, S.doc.h]').join('x') === doc0;
+    E('undoCrop()'); const undone = E('S.img.crop') === null;
+    E("S.crop = {x: 0, y: 0, w: 300, h: 300}; applyCrop(); resetCrop()"); const reset = E('S.img.crop') === null;
+    return masked && same && undone && reset;
+  });
+  test('crop rect maps through image scale and position', () => {
+    E('S.img.scale = 2; S.img.x = 50; S.img.y = 20'); const r = E('canvasRectToImageRect({x: 250, y: 120, w: 400, h: 200})');
+    E('resetImageTransform()'); return near(r.x, 100) && near(r.y, 50) && near(r.w, 200) && near(r.h, 100);
+  });
+
+  // ---- software renderer (used when WebGL / hardware acceleration is off) ----
+  // 1) forced software mode in a second copy of the app: index.html?renderer=cpu
+  const f2 = document.createElement('iframe'); f2.src = 'index.html?renderer=cpu&t=' + Date.now(); document.body.append(f2);
+  await new Promise(r => f2.onload = r); await new Promise(r => setTimeout(r, 500));
+  const w2 = f2.contentWindow, E2 = code => w2.eval(code);
+  E2('loadSample()');
+  test('?renderer=cpu: app starts in software mode and loads an image', () => E2('useGL') === false && E2('rendererName()') === 'software' && E2('S.img.el') !== null);
+  test('software mode: lens + distortion + crop render and export (image pixels present)', () => {
+    E2('S.lens.k1 = .25; S.warp.c.se = {x: .9, y: .9}; S.img.crop = {x: 100, y: 100, w: 900, h: 600}'); const c = E2('buildExportCanvas({image: true, grid: true})');
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let op = 0; for (let i = 3; i < d.length; i += 4) if (d[i] > 0) op++; return c.width === 1200 && op > 100000;
+  });
+  // 2) the software renderer must match the GPU renderer
+  if (E('useGL')) {
+    const states = {
+      identity: '', lens: 'S.lens.k1 = .25; S.lens.k2 = .05', rotate: 'S.img.rot = 12; S.img.x = 40; S.img.scale = .9',
+      crop: 'S.img.crop = {x: 200, y: 100, w: 700, h: 500}', warp: 'S.warp.c.se = {x: .92, y: .88}; S.warp.dev.w = {x: -.03, y: 0}',
+      combined: 'S.lens.k1 = .2; S.img.rot = -6; S.warp.c.ne = {x: .95, y: .05}',
+      fineMesh: 'S.warp.c.sw = {x: .03, y: .97}; S.warp.mesh = {n: 17, d: Array.from({length: 2 * 17 * 17}, (_, k) => .006 * Math.sin(k * .37))}',
+    };
+    const reset = 'resetLens(); resetImageTransform(); resetWarp(); S.img.crop = null';
+    const snap = () => { const t = document.createElement('canvas'); t.width = E('S.doc.w'); t.height = E('S.doc.h'); const x = t.getContext('2d'); x.drawImage(E('dom.gl'), 0, 0, t.width, t.height); return x.getImageData(0, 0, t.width, t.height).data; };
+    const gpu = {}; for (const k in states) { E(reset); E(states[k]); E('renderImage({full: true})'); gpu[k] = snap(); }
+    E("enterCpuMode('Test')");                                   // from here on the main iframe uses the software renderer
+    for (const k in states) {
+      E(reset); E(states[k]); E('renderImage({full: true})'); const cpu = snap(); let sum = 0, alphaFlips = 0;
+      for (let i = 0; i < cpu.length; i += 4) { for (let c = 0; c < 4; c++) sum += Math.abs(cpu[i + c] - gpu[k][i + c]); if (Math.abs(cpu[i + 3] - gpu[k][i + 3]) > 128) alphaFlips++; }
+      const mean = sum / cpu.length, flips = alphaFlips / (cpu.length / 4);
+      test(`software renderer matches GPU: ${k} (mean diff ${mean.toFixed(2)}/255, edge pixels ${(flips * 100).toFixed(2)}%)`, () => mean < 4 && flips < .015);
+    }
+  } else test('software renderer vs GPU comparison skipped (no WebGL in this browser)', () => true);
+
+  // ---- Auto-fit (computer vision): synthetic chip photos with a KNOWN tilt and fisheye, checked in the rendered picture ----
+  // Runs in a fresh copy of the app (the main iframe was switched to the software renderer above).
+  const f3 = document.createElement('iframe'); f3.src = 'index.html?t=' + Date.now(); document.body.append(f3);
+  await new Promise(r => f3.onload = r); await new Promise(r => setTimeout(r, 500));
+  const w3 = f3.contentWindow, E3 = code => w3.eval(code);
+  E3(`
+    // an ideal chip (dark walls, bright wells, some glints), rotated, then pushed through a barrel (fisheye) distortion + noise
+    window.makeChipPhoto = (chipId, {W = 1500, H = 1125, fill = .8, angle = 3, barrel = .08, noise = 18, seed = 1, bulge = 0} = {}) => {
+      const P = CHIPS.find(c => c.id === chipId); let rnd = seed; const rand = () => { rnd = (rnd * 1664525 + 1013904223) % 4294967296; return rnd / 4294967296; };
+      const SW = Math.round(W * 1.4), SH = Math.round(H * 1.4), sc = document.createElement('canvas'); sc.width = SW; sc.height = SH; const x = sc.getContext('2d');
+      x.fillStyle = '#2b3a38'; x.fillRect(0, 0, SW, SH);
+      const pitch = Math.min(W * fill / P.wide, H * fill / P.long), well = pitch * P.well / P.pitch, aw = P.wide * pitch - (pitch - well), ah = P.long * pitch - (pitch - well);
+      x.translate(SW / 2, SH / 2); x.rotate(angle * Math.PI / 180); x.translate(-aw / 2, -ah / 2);
+      x.fillStyle = '#39504c'; x.fillRect(-pitch * .4, -pitch * .4, aw + pitch * .8, ah + pitch * .8);
+      for (let j = 0; j < P.long; j++) for (let i = 0; i < P.wide; i++) {
+        const v = 110 + Math.round(rand() * 70); x.fillStyle = 'rgb(' + (v - 10) + ',' + (v + 10) + ',' + v + ')';
+        if (P.shape === 'circle') { x.beginPath(); x.arc(i * pitch + well / 2, j * pitch + well / 2, well / 2, 0, 7); x.fill(); } else x.fillRect(i * pitch, j * pitch, well, well);
+        if (rand() < .35) { x.fillStyle = '#fff'; x.beginPath(); x.arc(i * pitch + well * (.2 + .6 * rand()), j * pitch + well * (.2 + .6 * rand()), well * .09, 0, 7); x.fill(); }
+      }
+      x.setTransform(1, 0, 0, 1, 0, 0);
+      const out = barrelDistort(sc, W, H, barrel), o = out.getContext('2d'), d = o.getImageData(0, 0, W, H);
+      if (bulge) {                                                 // local, smooth displacement of up to bulge × pitch (a warped chip)
+        const src = new Uint8ClampedArray(d.data), amp = bulge * pitch;
+        for (let y = 0; y < H; y++) for (let xx = 0; xx < W; xx++) {
+          const sx = Math.round(xx + amp * Math.sin(2 * Math.PI * y / H * 1.5) * Math.sin(Math.PI * xx / W)), sy = Math.round(y + amp * Math.sin(2 * Math.PI * xx / W * 1.5) * Math.sin(Math.PI * y / H));
+          const t = (y * W + xx) * 4, f = (Math.min(H - 1, Math.max(0, sy)) * W + Math.min(W - 1, Math.max(0, sx))) * 4; d.data[t] = src[f]; d.data[t + 1] = src[f + 1]; d.data[t + 2] = src[f + 2]; d.data[t + 3] = 255;
+        }
+      }
+      for (let i = 0; i < d.data.length; i += 4) { const n = (rand() - .5) * 2 * noise; d.data[i] += n; d.data[i + 1] += n; d.data[i + 2] += n; }
+      o.putImageData(d, 0, 0); return out;
+    };
+    // In the RENDERED export: brightness at the grid's well centres vs at its wall centres. Aligned = clearly positive, misaligned = ~0.
+    window.alignmentContrast = () => {
+      const c = buildExportCanvas({image: true, grid: false}), L = gridLayout(S.doc.w, S.doc.h), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      const lum = (x, y) => { const i = (Math.round(y) * c.width + Math.round(x)) * 4; return d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11; }, gap = L.pitchX - L.size; let wall = 0, well = 0;
+      for (let j = 1; j < L.j1 - 1; j++) for (let i = 1; i < L.i1 - 1; i++) { const x = L.x0 + i * L.pitchX, y = L.y0 + j * L.pitchY; well += lum(x + L.size / 2, y + L.size / 2); wall += (lum(x - gap / 2, y + L.size / 2) + lum(x + L.size / 2, y - gap / 2)) / 2; }
+      return (well - wall) / (well + wall);
+    };
+    window.fitSynthetic = (chipId, opts, tick = chipId) => {
+      setImage(makeChipPhoto(chipId, opts)); selectChip(null); selectChip(tick); resetLens(); resetWarp();
+      const before = alignmentContrast(), r = autoFitNow();
+      return {ok: r.ok, reason: r.reason || '', before, after: r.ok ? alignmentContrast() : null, rot: S.img.rot, k1: S.lens.k1, median: r.stats ? r.stats.medianWell : null, handlesOnly: r.stats ? r.stats.medianHandlesOnly / r.stats.harmonic : null, mesh: !!S.warp.mesh, sides: r.stats ? r.stats.sideErr : null, ms: r.stats ? r.stats.ms : 0};
+    };
+  `);
+  const fitCases = [
+    ['V12', {angle: 3, barrel: .08}], ['V12', {angle: -7, barrel: .2}], ['V12', {angle: 12, barrel: .03, noise: 40}],
+    ['V3.1', {angle: 2, barrel: .12}], ['V10.2', {angle: 1, barrel: .15}], ['V11', {angle: -2, barrel: .05, fill: .6}],
+    ['V7.0', {angle: -4, barrel: .1, W: 2400, H: 1800}],                 // wells = half the pitch → detected at half-pitch (q = 2)
+    ['V1-Square', {angle: 5, barrel: .1}], ['V1-Square', {angle: 92, barrel: .1, W: 1125, H: 1500}],   // non-square, and turned 90°
+  ];
+  for (const [chip, opts] of fitCases) {
+    const r = E3(`fitSynthetic(${JSON.stringify(chip)}, ${JSON.stringify(opts)})`); await new Promise(res => setTimeout(res, 0));
+    const turn = Math.round(opts.angle / 90) * 90, wantRot = -(opts.angle - turn) + (turn ? 90 : 0);       // a 90°-turned photo is turned back by +90
+    test(`auto-fit ${chip} tilt ${opts.angle}° fisheye ${opts.barrel}: aligned in the rendered picture (contrast ${r.before.toFixed(2)} → ${r.after === null ? 'refused: ' + r.reason : r.after.toFixed(2)}, ${r.ms} ms)`,
+      () => r.ok && r.after > .12 && Math.abs(r.before) < .05 && Math.abs(r.rot - wantRot) < .3 && r.k1 > .3 * opts.barrel && r.median < .04);
+  }
+  { // fine distortion mesh + "Auto-fix distortion"
+    const b = E3(`fitSynthetic('V12', {angle: 2, barrel: .06, bulge: .45})`);
+    test(`auto-fit with a local bulge the 8 handles cannot follow: fine mesh brings the error from ${b.handlesOnly === null ? '?' : (b.handlesOnly * 100).toFixed(0)}% to ${b.median === null ? '?' : (b.median * 100).toFixed(0)}% of a well (worst side ${b.sides ? (Math.max(...Object.values(b.sides)) * 100).toFixed(0) : '?'}%)`,
+      () => b.ok && b.mesh && b.median < .035 && b.handlesOnly > 2 * b.median && Math.max(...Object.values(b.sides)) < .08 && b.after > .15);
+    const only = E3(`(() => { const img = JSON.stringify([S.img.x, S.img.y, S.img.rot, S.img.scale, S.lens.k1]); resetWarp(); const r = autoFitNow(true); return {ok: r.ok, same: img === JSON.stringify([S.img.x, S.img.y, S.img.rot, S.img.scale, S.lens.k1]), mesh: !!S.warp.mesh, median: r.stats && r.stats.medianWell, contrast: alignmentContrast()}; })()`);
+    test('auto-fix distortion re-creates handles + mesh without touching tilt / size / position / lens', () => only.ok && only.same && only.mesh && only.median < .035 && only.contrast > .15);
+    const far = E3(`(() => { S.img.x += 20; S.img.rot += 3; resetWarp(); const w0 = JSON.stringify(S.warp), r = autoFitNow(true); return {ok: r.ok, reason: r.reason, same: w0 === JSON.stringify(S.warp)}; })()`);
+    test('auto-fix distortion refuses when the image is not roughly lined up (asks for Auto-fit first)', () => !far.ok && far.same && /Auto-fit first/.test(far.reason));
+    test('fine mesh maths: offset at a node is that node, Reset distortion clears the mesh', () => E3(`(() => { const d = new Array(2 * 17 * 17).fill(0); d[2 * (5 * 17 + 3)] = .01; d[2 * (5 * 17 + 3) + 1] = -.02; S.warp.mesh = {n: 17, d}; const o = warpMeshOffset(S.warp.mesh, 3 / 16, 5 / 16), p = warpPoint(3 / 16, 5 / 16), act = warpActive(); resetWarp(); return Math.abs(o.x - .01) < 1e-9 && Math.abs(o.y + .02) < 1e-9 && act && Math.abs(p.x - 3 / 16 - .01) < 1e-9 && S.warp.mesh === null && !warpActive(); })()`));
+  }
+  { // must refuse rather than guess
+    const blank = E3(`(() => { const c = document.createElement('canvas'); c.width = 1200; c.height = 900; const x = c.getContext('2d'); const g = x.createLinearGradient(0, 0, 1200, 900); g.addColorStop(0, '#234'); g.addColorStop(1, '#9ab'); x.fillStyle = g; x.fillRect(0, 0, 1200, 900); setImage(c); selectChip(null); selectChip('V12'); const before = JSON.stringify([S.img.rot, S.img.scale, S.lens.k1, warpActive()]); const r = autoFitNow(); return {ok: r.ok, reason: r.reason, unchanged: before === JSON.stringify([S.img.rot, S.img.scale, S.lens.k1, warpActive()])}; })()`);
+    test('auto-fit refuses a picture with no wells and changes nothing', () => !blank.ok && blank.unchanged && /grid|wells/.test(blank.reason));
+    const wrong = E3(`fitSynthetic('V12', {angle: 2, barrel: .05}, 'V3.1')`);
+    test(`auto-fit refuses when the wrong chip version is ticked (V12 photo, V3.1 ticked): "${wrong.reason.slice(0, 60)}…"`, () => !wrong.ok);
+    const none = E3(`(() => { selectChip(null); return autoFitNow(); })()`);
+    test('auto-fit asks for a chip version when none is ticked', () => !none.ok && /chip version/.test(none.reason));
+    const undo = E3(`(() => { setImage(makeChipPhoto('V12', {angle: 3, barrel: .08})); selectChip('V12'); const b = JSON.stringify([S.img.x, S.img.y, S.img.rot, S.img.scale, S.lens.k1, S.warp]); autoFitNow(); const changed = b !== JSON.stringify([S.img.x, S.img.y, S.img.rot, S.img.scale, S.lens.k1, S.warp]); undoAutoFit(); return changed && b === JSON.stringify([S.img.x, S.img.y, S.img.rot, S.img.scale, S.lens.k1, S.warp]); })()`);
+    test('undo auto-fit restores the previous image settings exactly', () => undo === true);
+  }
+  // the user's real V12 photo, if it is present locally (samples/ is not in git)
+  const real = await new Promise(res => { const im = new w3.Image(); im.onload = () => { w3.__im = im; res(E3(`(() => { setImage(window.__im); selectChip(null); selectChip('V12'); const r = autoFitNow(); return {ok: r.ok, reason: r.reason, s: r.stats}; })()`)); }; im.onerror = () => res(null); im.src = 'samples/v12-example.jpg'; });
+  if (real) test(`auto-fit on the real V12 photo: first walls ${real.s && real.s.firstWall}, typical error ${real.s && real.s.medianImagePx.toFixed(1)} px, ${real.s && Math.round(real.s.inliers * 100)}% matched`,
+    () => real.ok && Math.abs(real.s.tiltDeg + 2.06) < .3 && real.s.medianWell < .08 && real.s.inliers > .88 && real.s.firstWall[0] === 14 && real.s.firstWall[1] === 2);
+  else test('auto-fit on the real V12 photo skipped (samples/v12-example.jpg not present)', () => true);
+
+  const bad = results.filter(r => !r[1]);
+  out.innerHTML = `<p class="${bad.length ? 'bad' : 'ok'}">${results.length - bad.length} / ${results.length} passed</p>` +
+    results.map(([n, ok, msg]) => `<div class="${ok ? 'ok' : 'bad'}">${ok ? 'PASS' : 'FAIL'}  ${n} ${msg}</div>`).join('');
+  document.title = bad.length ? `FAIL (${bad.length})` : 'PASS';
+}, 600);
+</script></body></html>

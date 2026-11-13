@@ -1,0 +1,21 @@
+--- a/grid-studio/js/autofit.js
++++ b/grid-studio/js/autofit.js
+@@ -28,6 +28,7 @@
+   meshSmooth: .5,           // stiffness of the fine mesh (higher = smoother, follows less local detail)
+   meshPasses: 4,            // the errors are only known mod 1 and far-off samples are down-weighted, so the mesh is fitted in passes
+   meshMaxShift: .6,         // a mesh node may move the picture at most this many lattice periods
++  maxStartSpread: 1.5,     // distortion-only: absolute phase spread; reject gross rotation/scale errors before flexible fitting
+   maxSpill: .55,            // well pattern just outside the fitted array, relative to inside; more = the photo has more wells than the chip
+ };
+ const AF_K1 = 0, AF_K2 = 1, AF_ROT = 2, AF_SCALE = 3, AF_X = 4, AF_Y = 5, AF_WARP = 6;       // parameter vector layout (22 numbers)
+@@ -242,7 +243,9 @@
+     if (seed[0].length < 200 || seed[1].length < 200) return notAligned;
+     for (let axis = 0; axis < 2; axis++) {
+       const l = lattice(th, seed[axis], axis), dlt = []; for (let n = 0; n < l.length; n++) dlt.push(axes[axis].sign * axes[axis].F.K[seed[axis][n]] - l[n]);
+-      const c = afPercentile(dlt, 50); if (Math.abs(c - Math.round(c)) > .3) return notAligned;
++      const c = afPercentile(dlt, 50), spread = afPercentile(dlt, 90) - afPercentile(dlt, 10);
++      (dbg.startSpread || (dbg.startSpread = [])).push(spread);
++      if (Math.abs(c - Math.round(c)) > .3 || spread > AF.maxStartSpread) return notAligned;
+       koff[axis] = Math.round(c);
+     }
+     fit(corners, residSeed, .1, 'distortion corners from absolute wall numbers');          // can recover distortions larger than half a well

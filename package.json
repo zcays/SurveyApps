@@ -1,0 +1,97 @@
+{
+  "name": "surveyapps",
+  "productName": "SurveyApps!",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Offline microscopy alignment and fluorescence analysis desktop suite",
+  "author": "zcays",
+  "homepage": "https://github.com/zcays/SurveyApps",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zcays/SurveyApps.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zcays/SurveyApps/issues"
+  },
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "build:backend": "python scripts/build_backend.py",
+    "build:mac": "electron-builder --mac --arm64 --publish never",
+    "build:win": "electron-builder --win --x64 --publish never",
+    "test:desktop": "node tests/desktop.cjs"
+  },
+  "build": {
+    "appId": "org.surveyapps.desktop",
+    "productName": "SurveyApps!",
+    "asar": true,
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "desktop/**",
+      "renderer/**",
+      "assets/icon.svg",
+      "assets/icon.png",
+      "vendor/grid-studio/**",
+      "vendor/provenance.json",
+      "docs/**",
+      "!docs/images/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/backend/surveyapps-backend",
+        "to": "backend"
+      }
+    ],
+    "artifactName": "SurveyApps-${version}-${os}-${arch}.${ext}",
+    "mac": {
+      "category": "public.app-category.education",
+      "icon": "assets/icon.icns",
+      "identity": null,
+      "minimumSystemVersion": "14.0",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "dmg": {
+      "title": "SurveyApps!",
+      "contents": [
+        {
+          "x": 140,
+          "y": 180
+        },
+        {
+          "x": 420,
+          "y": 180,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "publish": null,
+    "afterPack": "scripts/adhoc_sign.cjs"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "electron": "45.3.2",
+    "electron-builder": "26.18.0",
+    "playwright": "1.65.0"
+  }
+}
