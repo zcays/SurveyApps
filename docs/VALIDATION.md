@@ -21,9 +21,17 @@ Native host: Apple silicon, macOS 27.0.1 (Darwin 27.0.0). Minimum configured mac
 
 Machine-readable results and raw logs are in `test-results/` (local evidence, git-ignored). `desktop-dmg-arm64-final.json` is the native installed-DMG run; `desktop-dmg-x64-rosetta.json` records the installed Intel DMG run under Rosetta (8/8 groups, zero unexpected errors after quit). Both binaries and frozen backend architectures were checked with `file`. Source archive includes the selected final evidence.
 
-## Limits and unbuilt targets
+## Limits and remaining platform caveats
 
-Windows installer EXE and portable ZIP have **not been built or tested**. A macOS Python freeze cannot supply a Windows Python runtime. The manual-only Windows x64 GitHub Actions job builds its own frozen Python backend, produces NSIS EXE and ZIP, then runs tests. It has not been triggered. Intel macOS app, DMG and ZIP were built; full installed-DMG tests passed through Rosetta, not on a physical Intel Mac. Linux and universal macOS binaries are outside this delivery.
+GitHub Actions workflow run [`43512412391`](https://github.com/zcays/SurveyApps/actions/runs/43512412391) built and tested all three release targets cleanly:
+- **`macos-15` (ARM64):** PyInstaller freeze + `8/8` Python tests + `electron-builder` (`.dmg` / `.zip`) + `tests/backend-lifecycle.cjs` + `tests/desktop.cjs --packaged` (`8/8` checks, `100/100` Grid Studio self-tests).
+- **`macos-15-intel` (x64):** PyInstaller freeze + `8/8` Python tests + `electron-builder` (`.dmg` / `.zip`) + `tests/backend-lifecycle.cjs` + `tests/desktop.cjs --packaged` (`8/8` checks, `94/94` Grid Studio self-tests via Canvas 2D software fallback because the headless Intel runner lacked WebGL).
+- **`windows-2025` (x64):** PyInstaller freeze + `8/8` Python tests + `electron-builder` (NSIS `.exe` / portable `.zip`) + `tests/backend-lifecycle.cjs` + `tests/desktop.cjs --packaged` (`7/7` checks against unpacked `SurveyApps!.exe` with `100/100` Grid Studio self-tests; Unix `pgrep` check skipped on Windows).
+
+Remaining platform caveats:
+- macOS builds are ad-hoc integrity signed (`codesign --verify --deep --strict`), **not** Developer ID signed or Apple notarized; Windows builds are unsigned (no Authenticode certificate).
+- Interactive NSIS GUI wizard/SmartScreen flows on a physical Windows desktop, macOS 14/15 physical hardware, and physical Intel Mac hardware were not separately exercised outside GitHub Actions CI and local macOS 27.0.1 ARM64/Rosetta verification.
+- Linux and universal macOS binaries are outside this delivery.
 
 The app's upstream scientific limits remain: RGB 8-bit conversion, first TIFF frame, partial edge wells excluded, no spectral unmixing/concentration calibration, capped well dropdown, Grid Studio 8192 px document limit, and auto-fit requiring visible regular arrays. Lab configuration JSON does not embed source images or measurements. Grid Studio has no upstream full-project persistence.
 
@@ -48,14 +56,14 @@ The testing delegate's narrative summary used wrong environment versions, nonexi
 
 The E2E harness now checks error arrays again after teardown. Connection resets/empty responses caused specifically by intentional quit are classified as expected; other late errors still fail. It also waits for the restarted Dash workspace to render before ending the recovery test. This prevents a premature PASS while asynchronous teardown events are still arriving.
 
-## Final artifacts
+## Final release artifacts (`v1.0.0`)
 
-- `SurveyApps-1.0.0-mac-arm64.dmg` — Apple silicon installer; 168,767,186 bytes.
-- `SurveyApps-1.0.0-mac-arm64.zip` — standalone Apple silicon app archive; 165,667,211 bytes.
-- `SurveyApps-1.0.0-mac-x64.dmg` — Intel installer; 178,002,946 bytes.
-- `SurveyApps-1.0.0-mac-x64.zip` — standalone Intel app archive; 174,856,272 bytes.
+- `SurveyApps-1.0.0-mac-arm64.dmg` — Apple silicon installer; 169,732,558 bytes (CI run `43512412391`).
+- `SurveyApps-1.0.0-mac-arm64.zip` — standalone Apple silicon app archive; 166,634,168 bytes (CI run `43512412391`).
+- `SurveyApps-1.0.0-mac-x64.dmg` — Intel installer; 178,434,136 bytes (CI run `43512412391`).
+- `SurveyApps-1.0.0-mac-x64.zip` — standalone Intel app archive; 175,237,962 bytes (CI run `43512412391`).
+- `SurveyApps-1.0.0-win-x64.exe` — Windows x64 NSIS installer; 169,210,418 bytes (CI run `43512412391`).
+- `SurveyApps-1.0.0-win-x64.zip` — Windows x64 portable archive; 211,867,693 bytes (CI run `43512412391`).
 - `SurveyApps-1.0.0-source.zip` — source, assets, locks, workflow and selected validation evidence; no development runtimes, photos or machine folders.
 
-SHA-256 values are in `dist/SHA256SUMS.txt`. The unpacked `.app` bundles are in `dist/mac-arm64/` and `dist/mac/`. Installer copying was tested outside the workspace with no Node/Python on the app PATH. ZIP contents were verified against the same built bundles; a separate ZIP drag-install flow was not exercised.
-
-The Intel JSON report’s top-level `arch` describes the ARM64 test driver; the executed app and its Python backend are x86_64 Mach-O files (see `test-results/architectures.txt`). Subsequent harness runs also record Electron runtime architecture separately. CI accepts a successful upstream self-test title/count when a host lacks WebGL and explicitly records skipped checks rather than requiring the native GPU count.
+SHA-256 values for all release downloads are recorded in `SHA256SUMS.txt` on the `v1.0.0` GitHub Release. Local macOS DMG installer copying was tested outside the workspace with no Node/Python on the app PATH (`desktop-dmg-arm64-final.json` and `desktop-dmg-x64-rosetta.json`). CI accepts a successful upstream self-test title/count when a host lacks WebGL and explicitly records skipped checks rather than requiring the native GPU count.
