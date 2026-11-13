@@ -562,7 +562,7 @@ async function triggerAndAwaitDownload(electronApp, downloadDir, actionFn, custo
 
     // 5a. Upload JPEG, TIFF, and PNG fixtures via actual file input inside #upload-image
     for (const fileName of ['fixture_rgb.jpg', 'fixture_rgb.tiff', 'fixture_rgb.png']) {
-      const uploadResponsePromise = labPageFrame().waitForResponse(
+      const uploadResponsePromise = page.waitForResponse(
         res => res.url().includes('/_dash-update-component') && res.status() === 200,
         { timeout: 25000 }
       );

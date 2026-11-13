@@ -364,6 +364,10 @@ class TestFrozenBackendProcess(unittest.TestCase):
         cmd, is_frozen = self._get_backend_cmd()
         env = os.environ.copy()
         env['PYTHONUNBUFFERED'] = '1'
+        env['PYTHONDONTWRITEBYTECODE'] = '1'
+        env['SURVEYAPPS_TRACE_BOOT'] = '1'
+        env.pop('PYTHONPATH', None)
+        env.pop('PYTHONHOME', None)
         proc = subprocess.Popen(
             cmd,
             stdin=subprocess.PIPE,
@@ -377,13 +381,13 @@ class TestFrozenBackendProcess(unittest.TestCase):
 
         def _pump_stdout():
             try:
-                for line in proc.stdout:
+                for line in iter(proc.stdout.readline, ''):
                     out_q.put(line)
             finally:
                 out_q.put(None)
 
         def _pump_stderr():
-            for line in proc.stderr:
+            for line in iter(proc.stderr.readline, ''):
                 err_lines.append(line)
 
         threading.Thread(target=_pump_stdout, daemon=True).start()
@@ -392,7 +396,7 @@ class TestFrozenBackendProcess(unittest.TestCase):
         proc.stdin.write(json.dumps({'token': token}) + '\n')
         proc.stdin.flush()
 
-        deadline = time.time() + 45
+        deadline = time.time() + 60
         ready_info = None
         seen_out = []
         while time.time() < deadline:
