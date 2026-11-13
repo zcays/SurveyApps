@@ -563,17 +563,28 @@ async function triggerAndAwaitDownload(electronApp, downloadDir, actionFn, custo
     // 5a. Upload JPEG, TIFF, and PNG fixtures via actual file input inside #upload-image
     for (const fileName of ['fixture_rgb.jpg', 'fixture_rgb.tiff', 'fixture_rgb.png']) {
       const uploadResponsePromise = page.waitForResponse(
-        res => res.url().includes('/_dash-update-component') && res.status() === 200,
+        async res => {
+          if (!res.url().includes('/_dash-update-component') || res.status() !== 200) return false;
+          try {
+            const body = await res.json();
+            const store = body && body.response && body.response['image-store'] && body.response['image-store'].data;
+            return Boolean(store && store.w === 241 && store.h === 181 && typeof store.b64 === 'string');
+          } catch {
+            return false;
+          }
+        },
         { timeout: 25000 }
       );
       await labFrame.locator('#upload-image input[type="file"]').setInputFiles(path.join(fixtureDir, fileName));
-      await uploadResponsePromise;
+      const uploadRes = await uploadResponsePromise;
+      const uploadJson = await uploadRes.json();
+      const expectedB64 = uploadJson.response['image-store'].data.b64;
       await labPageFrame().waitForFunction(
-        () => {
+        b64 => {
           const gd = document.querySelector('#image-graph .js-plotly-plot');
-          return gd && gd.layout && gd.layout.xaxis && Math.round(gd.layout.xaxis.range[1]) === 241;
+          return Boolean(gd && gd.data && gd.data[0] && gd.data[0].source === b64);
         },
-        null,
+        expectedB64,
         { timeout: 25000 }
       );
     }

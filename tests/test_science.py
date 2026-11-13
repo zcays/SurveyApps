@@ -416,7 +416,10 @@ class TestFrozenBackendProcess(unittest.TestCase):
             except json.JSONDecodeError:
                 continue
         if ready_info is None:
-            self._last_start_diag = f"cmd={cmd} poll={proc.poll()} stdout={seen_out} stderr={''.join(err_lines)[-2000:]}"
+            full_err = ''.join(err_lines)
+            if len(full_err) > 6000:
+                full_err = full_err[:2500] + '\n...<truncated>...\n' + full_err[-3500:]
+            self._last_start_diag = f"cmd={cmd} poll={proc.poll()} stdout={seen_out} stderr={full_err}"
         else:
             self._last_start_diag = ''
         return proc, ready_info, is_frozen

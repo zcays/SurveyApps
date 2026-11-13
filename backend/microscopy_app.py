@@ -2,23 +2,38 @@
 Owns the existing Dash UI and scientific callbacks. Local changes are documented
 in docs/UPSTREAM_CHANGES.md; the exact original remains in vendor/microscopy/.
 """
+import os as _os
+import time as _time
+_M_TRACE = _os.environ.get('SURVEYAPPS_TRACE_BOOT') == '1'
+_M_T0 = _time.monotonic()
+def _m_trace(stage):
+    if _M_TRACE:
+        _os.write(2, f'[microscopy +{(_time.monotonic() - _M_T0):.3f}s] {stage}\n'.encode('utf-8'))
+
+_m_trace('before_dash_import')
 import dash
 from dash import dcc, html, Input, Output, State, callback_context
+_m_trace('after_dash_import')
 import plotly.graph_objects as go
+_m_trace('after_plotly_import')
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 Image.MAX_IMAGE_PIXELS = 100_000_000
 import warnings
 warnings.simplefilter("error", Image.DecompressionBombWarning)
+_m_trace('after_pil_import')
 import numpy as np
+_m_trace('after_numpy_import')
 from io import BytesIO
 import base64
 import json
 import string
 
 from pathlib import Path
+_m_trace('before_Dash_init')
 app = dash.Dash(__name__, title="SurveyApps! · Fluorescence Lab",
                 assets_folder=str(Path(__file__).parent / 'assets'),
                 serve_locally=True, update_title="Processing…")
+_m_trace('after_Dash_init')
 
 # Deterministic offline demonstration image; never downloads remote data.
 img_array = np.zeros((800, 800, 3), dtype=np.uint8)

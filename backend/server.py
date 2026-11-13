@@ -2,6 +2,7 @@
 The parent sends one JSON boot record on stdin. EOF always terminates this process,
 including during scientific imports. No image data or credentials are logged.
 """
+import faulthandler
 import hmac
 import json
 import multiprocessing
@@ -50,11 +51,16 @@ def main():
     threading.Thread(target=watch_parent, daemon=True).start()
     _trace('watch_parent_started')
 
+    if _TRACE_BOOT:
+        faulthandler.dump_traceback_later(15, repeat=True, file=sys.stderr)
+
     from flask import request, abort, jsonify
     from werkzeug.serving import make_server, WSGIRequestHandler
     _trace('importing_microscopy_app')
     from microscopy_app import app
     _trace('imported_microscopy_app')
+    if _TRACE_BOOT:
+        faulthandler.cancel_dump_traceback_later()
     app.server.config['MAX_CONTENT_LENGTH'] = 256 * 1024 * 1024
 
     @app.server.before_request
