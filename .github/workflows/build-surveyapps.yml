@@ -41,7 +41,7 @@ jobs:
       - run: npx electron-builder --${{ matrix.target }} --${{ matrix.arch }} --publish never
       - run: node tests/backend-lifecycle.cjs
       - run: node tests/desktop.cjs --packaged
-      - uses: upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: SurveyApps-${{ matrix.target }}-${{ matrix.arch }}
