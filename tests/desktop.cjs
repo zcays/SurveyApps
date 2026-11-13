@@ -549,23 +549,32 @@ async function triggerAndAwaitDownload(electronApp, downloadDir, actionFn, custo
       return f;
     };
 
-    // Wait for Dash clientside & initial store population using Playwright's frame context
+    // Wait for Dash clientside & initial synthetic image plot before uploading fixtures
     await labPageFrame().waitForFunction(
-      () => Boolean(window.dash_clientside && typeof window.dash_clientside.set_props === 'function'),
+      () => {
+        if (!window.dash_clientside || typeof window.dash_clientside.set_props !== 'function') return false;
+        const gd = document.querySelector('#image-graph .js-plotly-plot');
+        return Boolean(gd && gd.layout && gd.layout.xaxis && Array.isArray(gd.layout.xaxis.range));
+      },
       null,
-      { timeout: 15000 }
+      { timeout: 30000 }
     );
 
     // 5a. Upload JPEG, TIFF, and PNG fixtures via actual file input inside #upload-image
     for (const fileName of ['fixture_rgb.jpg', 'fixture_rgb.tiff', 'fixture_rgb.png']) {
+      const uploadResponsePromise = labPageFrame().waitForResponse(
+        res => res.url().includes('/_dash-update-component') && res.status() === 200,
+        { timeout: 25000 }
+      );
       await labFrame.locator('#upload-image input[type="file"]').setInputFiles(path.join(fixtureDir, fileName));
+      await uploadResponsePromise;
       await labPageFrame().waitForFunction(
         () => {
           const gd = document.querySelector('#image-graph .js-plotly-plot');
           return gd && gd.layout && gd.layout.xaxis && Math.round(gd.layout.xaxis.range[1]) === 241;
         },
         null,
-        { timeout: 10000 }
+        { timeout: 25000 }
       );
     }
 

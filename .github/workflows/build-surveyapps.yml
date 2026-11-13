@@ -37,10 +37,13 @@ jobs:
       - run: node scripts/build_icons.cjs
       - run: python scripts/build_icon_formats.py
       - run: python scripts/build_backend.py
-      - run: python -m unittest discover -s tests -p "test_*.py"
+      - run: python -u -X faulthandler -m unittest discover -s tests -p "test_*.py" -v
+        timeout-minutes: 5
       - run: npx electron-builder --${{ matrix.target }} --${{ matrix.arch }} --publish never
       - run: node tests/backend-lifecycle.cjs
+        timeout-minutes: 2
       - run: node tests/desktop.cjs --packaged
+        timeout-minutes: 10
       - uses: actions/upload-artifact@v4
         if: always()
         with:

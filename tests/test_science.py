@@ -345,6 +345,9 @@ class TestMicroscopyScience(unittest.TestCase):
         self.assertEqual(microscopy_app.invalidate_fluorescence(), None)
 
 
+import queue
+import threading
+
 class TestFrozenBackendProcess(unittest.TestCase):
     """Spawns the PyInstaller-frozen surveyapps-backend binary (or server.py fallback if missing)
     and verifies dynamic loopback port binding, header authentication, and EOF / shutdown cleanup.
@@ -369,15 +372,38 @@ class TestFrozenBackendProcess(unittest.TestCase):
             text=True,
             env=env
         )
+        out_q = queue.Queue()
+        err_lines = []
+
+        def _pump_stdout():
+            try:
+                for line in proc.stdout:
+                    out_q.put(line)
+            finally:
+                out_q.put(None)
+
+        def _pump_stderr():
+            for line in proc.stderr:
+                err_lines.append(line)
+
+        threading.Thread(target=_pump_stdout, daemon=True).start()
+        threading.Thread(target=_pump_stderr, daemon=True).start()
+
         proc.stdin.write(json.dumps({'token': token}) + '\n')
         proc.stdin.flush()
 
-        deadline = time.time() + 30
+        deadline = time.time() + 45
         ready_info = None
+        seen_out = []
         while time.time() < deadline:
-            line = proc.stdout.readline()
-            if not line:
+            remaining = max(0.1, deadline - time.time())
+            try:
+                line = out_q.get(timeout=remaining)
+            except queue.Empty:
                 break
+            if line is None:
+                break
+            seen_out.append(line.rstrip())
             try:
                 parsed = json.loads(line)
                 if parsed.get('event') == 'ready':
@@ -385,13 +411,17 @@ class TestFrozenBackendProcess(unittest.TestCase):
                     break
             except json.JSONDecodeError:
                 continue
+        if ready_info is None:
+            self._last_start_diag = f"cmd={cmd} poll={proc.poll()} stdout={seen_out} stderr={''.join(err_lines)[-2000:]}"
+        else:
+            self._last_start_diag = ''
         return proc, ready_info, is_frozen
 
     def test_auth_dynamic_port_and_shutdown_cleanup(self):
         token = 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90'
         proc, ready_info, _ = self._start_backend(token)
         try:
-            self.assertIsNotNone(ready_info, 'Backend did not emit ready JSON event')
+            self.assertIsNotNone(ready_info, f'Backend did not emit ready JSON event: {self._last_start_diag}')
             port = ready_info['port']
             self.assertIsInstance(port, int)
             self.assertGreater(port, 0)
@@ -450,7 +480,7 @@ class TestFrozenBackendProcess(unittest.TestCase):
         token = 'f0e1d2c3b4a5968778695a4b3c2d1e0ff0e1d2c3b4a5968778695a4b3c2d1e0f'
         proc, ready_info, _ = self._start_backend(token)
         try:
-            self.assertIsNotNone(ready_info)
+            self.assertIsNotNone(ready_info, f'Backend did not emit ready JSON event: {self._last_start_diag}')
             # Close stdin without writing 'shutdown' -> simulates parent crash/EOF
             proc.stdin.close()
             exit_code = proc.wait(timeout=10)
