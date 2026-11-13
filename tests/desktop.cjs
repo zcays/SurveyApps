@@ -27,10 +27,19 @@
 
 const { _electron: electron } = require('playwright');
 const assert = require('node:assert/strict');
-const { execFileSync } = require('node:child_process');
+const { execFileSync, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+
+function buildCleanEnv(extra = {}) {
+  const clean = { ...process.env };
+  delete clean.ELECTRON_RUN_AS_NODE;
+  delete clean.PYTHONHOME;
+  delete clean.PYTHONPATH;
+  delete clean.NODE_PATH;
+  return { ...clean, ...extra };
+}
 
 const SURVEYAPPS_DIR = path.resolve(__dirname, '..');
 const RESULTS_DIR = path.join(SURVEYAPPS_DIR, 'test-results');
@@ -188,11 +197,11 @@ async function triggerAndAwaitDownload(electronApp, downloadDir, actionFn, custo
     ? {
         executablePath: resolvePackagedExecutable(),
         args: [`--user-data-dir=${userDataDir}`],
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: '', PYTHONHOME: '', PYTHONPATH: '', NODE_PATH: '', ...(process.platform === 'darwin' ? {PATH:'/usr/bin:/bin:/usr/sbin:/sbin'} : {}) },
+        env: buildCleanEnv(process.platform === 'darwin' ? { PATH: '/usr/bin:/bin:/usr/sbin:/sbin' } : {}),
       }
     : {
         args: [SURVEYAPPS_DIR, `--user-data-dir=${userDataDir}`],
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: '' },
+        env: buildCleanEnv(),
       };
 
   console.log(`[SurveyApps E2E] Launching in ${modeLabel.toUpperCase()} mode...`);
@@ -219,7 +228,30 @@ async function triggerAndAwaitDownload(electronApp, downloadDir, actionFn, custo
     report.checks.push({ name, status: 'PASS', ...details });
   }
 
-  const electronApp = await electron.launch(launchOpts);
+  let electronApp;
+  try {
+    electronApp = await electron.launch(launchOpts);
+  } catch (launchErr) {
+    if (isPackaged && launchOpts.executablePath) {
+      const probe = spawnSync(
+        launchOpts.executablePath,
+        ['--inspect=0', '--remote-debugging-port=0', ...launchOpts.args],
+        {
+          env: { ...launchOpts.env, ELECTRON_ENABLE_LOGGING: '1' },
+          encoding: 'utf8',
+          timeout: 4000,
+        }
+      );
+      console.error('[SurveyApps E2E] Launch probe diagnostic:', JSON.stringify({
+        status: probe.status,
+        signal: probe.signal,
+        error: probe.error ? String(probe.error) : null,
+        stdout: (probe.stdout || '').slice(-2000),
+        stderr: (probe.stderr || '').slice(-2000),
+      }, null, 2));
+    }
+    throw launchErr;
+  }
   let allowExpectedErrorWindow = false;
   let tearingDown = false;
   report.runtime = await electronApp.evaluate(() => ({arch:process.arch,versions:process.versions}));
@@ -819,7 +851,7 @@ async function triggerAndAwaitDownload(electronApp, downloadDir, actionFn, custo
     // 7. Backend Failure Isolation & Retry Recovery via Test Instrumentation
     // -------------------------------------------------------------------------
     allowExpectedErrorWindow = true;
-    const electronPid = electronApp.process().pid;
+    const electronPid = await electronApp.evaluate(() => process.pid);
     let killedPid = null;
     try {
       if (process.platform === 'win32') {

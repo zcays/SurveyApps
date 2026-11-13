@@ -44,6 +44,8 @@ jobs:
         timeout-minutes: 2
       - run: node tests/desktop.cjs --packaged
         timeout-minutes: 10
+        env:
+          DEBUG: pw:browser
       - uses: actions/upload-artifact@v4
         if: always()
         with:
