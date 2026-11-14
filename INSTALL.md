@@ -11,9 +11,9 @@ Download the installer for your operating system from the **[GitHub Releases](ht
 
 | Your Computer | Installer (Recommended) | Portable Archive |
 |---|---|---|
-| **Mac with Apple Silicon** (M1 / M2 / M3 / M4) | `SurveyApps-1.0.0-mac-arm64.dmg` | `SurveyApps-1.0.0-mac-arm64.zip` |
-| **Mac with Intel processor** | `SurveyApps-1.0.0-mac-x64.dmg` | `SurveyApps-1.0.0-mac-x64.zip` |
-| **Windows PC (64-bit x64)** | `SurveyApps-1.0.0-win-x64.exe` | `SurveyApps-1.0.0-win-x64.zip` |
+| **Mac with Apple Silicon** (M1 / M2 / M3 / M4) | `SurveyApps-1.0.1-mac-arm64.dmg` | `SurveyApps-1.0.1-mac-arm64.zip` |
+| **Mac with Intel processor** | `SurveyApps-1.0.1-mac-x64.dmg` | `SurveyApps-1.0.1-mac-x64.zip` |
+| **Windows PC (64-bit x64)** | `SurveyApps-1.0.1-win-x64.exe` | `SurveyApps-1.0.1-win-x64.zip` |
 
 > **Not sure which Mac you have?** Click the Apple menu () → **About This Mac**.  
 > If **Chip** says *Apple M1/M2/M3/M4*, choose **arm64**. If **Processor** says *Intel*, choose **x64**.
@@ -24,7 +24,7 @@ Download the installer for your operating system from the **[GitHub Releases](ht
 
 ### Option A: DMG Installer (Recommended)
 
-1. Download `SurveyApps-1.0.0-mac-arm64.dmg` (Apple Silicon) or `SurveyApps-1.0.0-mac-x64.dmg` (Intel).
+1. Download `SurveyApps-1.0.1-mac-arm64.dmg` (Apple Silicon) or `SurveyApps-1.0.1-mac-x64.dmg` (Intel).
 2. Double-click the `.dmg` file to mount it.
 3. Drag **SurveyApps!.app** onto the **Applications** folder shortcut inside the window.
 4. Eject the mounted disk image from Finder.
@@ -32,7 +32,7 @@ Download the installer for your operating system from the **[GitHub Releases](ht
 
 ### Option B: Portable ZIP
 
-1. Download `SurveyApps-1.0.0-mac-arm64.zip` or `SurveyApps-1.0.0-mac-x64.zip`.
+1. Download `SurveyApps-1.0.1-mac-arm64.zip` or `SurveyApps-1.0.1-mac-x64.zip`.
 2. Double-click the `.zip` in Finder to extract **SurveyApps!.app**.
 3. Move **SurveyApps!.app** into `/Applications` (recommended) and launch it.
 
@@ -55,7 +55,7 @@ To approve a copy you downloaded from the official release and verified:
 
 ### Option A: EXE Installer (Recommended)
 
-1. Download `SurveyApps-1.0.0-win-x64.exe`.
+1. Download `SurveyApps-1.0.1-win-x64.exe`.
 2. Double-click the installer.
 3. If **Windows Defender SmartScreen** shows *"Windows protected your PC"*, click **More info** → **Run anyway** (only for verified official downloads).
 4. Follow the setup wizard to choose an install directory (per-user install, no admin rights required) and optionally create a Desktop shortcut.
@@ -63,7 +63,7 @@ To approve a copy you downloaded from the official release and verified:
 
 ### Option B: Portable ZIP
 
-1. Download `SurveyApps-1.0.0-win-x64.zip`.
+1. Download `SurveyApps-1.0.1-win-x64.zip`.
 2. Right-click the `.zip` → **Extract All…** into a permanent folder (for example, `C:\Users\<You>\Apps\SurveyApps`).  
    *(Do not run the `.exe` directly from inside the compressed `.zip` preview in File Explorer.)*
 3. Double-click `SurveyApps!.exe` inside the extracted folder.
@@ -76,11 +76,11 @@ Compare your downloaded file's SHA-256 hash against `SHA256SUMS.txt` on the Rele
 
 - **macOS (Terminal):**
   ```sh
-  shasum -a 256 SurveyApps-1.0.0-mac-arm64.dmg
+  shasum -a 256 SurveyApps-1.0.1-mac-arm64.dmg
   ```
 - **Windows (PowerShell):**
   ```powershell
-  Get-FileHash .\SurveyApps-1.0.0-win-x64.exe -Algorithm SHA256
+  Get-FileHash .\SurveyApps-1.0.1-win-x64.exe -Algorithm SHA256
   ```
 
 ---

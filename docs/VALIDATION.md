@@ -55,9 +55,11 @@ The testing delegate's narrative summary used wrong environment versions, nonexi
 
 The E2E harness now checks error arrays again after teardown. Connection resets/empty responses caused specifically by intentional quit are classified as expected; other late errors still fail. It also waits for the restarted Dash workspace to render before ending the recovery test. This prevents a premature PASS while asynchronous teardown events are still arriving.
 
-> **Note (2026-11-13):** the `v1.0.0` installers below were built before the Grid Studio update to `e6ba1c4`. The source on `main` contains the update; installers built from it have not been published as a release yet.
+## Release `v1.0.1` (2026-11-14)
 
-## Final release artifacts (`v1.0.0`)
+Same application with the bundled Grid Studio updated to `e6ba1c4`. Installers (`SurveyApps-1.0.1-mac-arm64.dmg/.zip`, `-mac-x64.dmg/.zip`, `-win-x64.exe/.zip`) were built by the GitHub Actions workflow on `macos-15`, `macos-15-intel` and `windows-2025`, each passing the Python suite, the backend lifecycle test and the packaged desktop E2E (which runs the embedded Grid Studio self-tests). The run is linked in the release notes; SHA-256 values are in that release's `SHA256SUMS.txt`. Not repeated for 1.0.1: the local installed-DMG / Rosetta checks described for 1.0.0.
+
+## Earlier release artifacts (`v1.0.0`)
 
 - `SurveyApps-1.0.0-mac-arm64.dmg` — Apple silicon installer; 169,732,558 bytes (CI run `43512412391`).
 - `SurveyApps-1.0.0-mac-arm64.zip` — standalone Apple silicon app archive; 166,634,168 bytes (CI run `43512412391`).

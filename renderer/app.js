@@ -156,7 +156,7 @@
 
     var version = typeof safe.version === 'string' && safe.version.trim()
       ? safe.version.trim()
-      : '1.0.0';
+      : '1.0.1';
 
     var defaultMessages = {
       starting: 'Starting Fluorescence Lab… Grid Studio is ready.',
@@ -616,7 +616,7 @@
           state: 'error',
           message: msg,
           gridUrl: appState.status.gridUrl || DEFAULT_FALLBACK_GRID_URL,
-          version: appState.status.version || '1.0.0'
+          version: appState.status.version || '1.0.1'
         });
       }
     );

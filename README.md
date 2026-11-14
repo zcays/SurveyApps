@@ -43,9 +43,9 @@ Pre-built downloads are published on the **[GitHub Releases](https://github.com/
 
 | Platform | Recommended Download | Portable Alternative | Requirements |
 |---|---|---|---|
-| **macOS (Apple Silicon — M1/M2/M3/M4)** | `SurveyApps-1.0.0-mac-arm64.dmg` | `SurveyApps-1.0.0-mac-arm64.zip` | macOS 14.0+ |
-| **macOS (Intel x64)** | `SurveyApps-1.0.0-mac-x64.dmg` | `SurveyApps-1.0.0-mac-x64.zip` | macOS 14.0+ |
-| **Windows (64-bit x64)** | `SurveyApps-1.0.0-win-x64.exe` | `SurveyApps-1.0.0-win-x64.zip` | Windows 10/11 (64-bit) |
+| **macOS (Apple Silicon — M1/M2/M3/M4)** | `SurveyApps-1.0.1-mac-arm64.dmg` | `SurveyApps-1.0.1-mac-arm64.zip` | macOS 14.0+ |
+| **macOS (Intel x64)** | `SurveyApps-1.0.1-mac-x64.dmg` | `SurveyApps-1.0.1-mac-x64.zip` | macOS 14.0+ |
+| **Windows (64-bit x64)** | `SurveyApps-1.0.1-win-x64.exe` | `SurveyApps-1.0.1-win-x64.zip` | Windows 10/11 (64-bit) |
 
 > **Full step-by-step instructions:** See **[INSTALL.md](INSTALL.md)** for macOS DMG/ZIP installation, Windows EXE/ZIP installation, SHA-256 verification, and unsigned-app approval steps.
 
@@ -131,7 +131,7 @@ npm start
   ```bash
   CSC_IDENTITY_AUTO_DISCOVERY=false npm run build:mac
   ```
-  Outputs `dist/SurveyApps-1.0.0-mac-arm64.dmg` and `dist/SurveyApps-1.0.0-mac-arm64.zip`.
+  Outputs `dist/SurveyApps-1.0.1-mac-arm64.dmg` and `dist/SurveyApps-1.0.1-mac-arm64.zip`.
 
 - **macOS (Intel x64 on Apple Silicon via Rosetta + x64 Python):**
   ```bash
@@ -145,7 +145,7 @@ npm start
   python scripts/build_backend.py
   npm run build:win
   ```
-  Outputs `dist/SurveyApps-1.0.0-win-x64.exe` (NSIS installer) and `dist/SurveyApps-1.0.0-win-x64.zip` (portable archive).
+  Outputs `dist/SurveyApps-1.0.1-win-x64.exe` (NSIS installer) and `dist/SurveyApps-1.0.1-win-x64.zip` (portable archive).
 
 ### Automated Tests
 
