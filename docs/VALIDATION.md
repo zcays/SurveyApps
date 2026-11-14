@@ -10,8 +10,7 @@ Native host: Apple silicon, macOS 27.0.1 (Darwin 27.0.0). Minimum configured mac
 
 ## Test evidence
 
-- **Original App A:** 98/100. Two pre-existing failures: distortion-only auto-fix accepted gross misalignment; the following mesh assertion then failed. There were zero page errors. The original user's optional real-photo check passed. The original files were preserved, not adjusted to force a green result.
-- **Integrated App A:** 100/100, including GPU/software parity, chip geometry/calibration, crop/export and synthetic auto-fit/distortion tests. One optional real-photo test is recorded as skipped/passing because photos are excluded from the package. No user photos are shipped.
+- **Integrated App A (Grid Studio `e6ba1c4`):** 123/123 with zero page errors (`node tests/original-grid.cjs --vendor`, local macOS ARM64, 2026-11-13), including GPU/software parity, chip geometry/calibration, crop/export (incl. crop on a rotated image), synthetic auto-fit/distortion tests and tissue-covered photos for every chip version. The two real-photo tests are recorded as skipped/passing because photos are excluded from the package. No user photos are shipped. (The earlier snapshot scored 100/100 with one SurveyApps patch; that patch is no longer needed.)
 - **Python suite:** 8/8. Exact known-pixel outputs for all existing channel formulas; rectangular spacing and placed-origin consistency; well/grid/merged PNGs; row labels; JSON settings round-trip/validation; PNG/JPEG/TIFF and corrupt-image HTTP callbacks; heatmap schema; frozen service authentication and dynamic port; stdin shutdown and parent EOF cleanup.
 - **Packaged desktop E2E:** eight test groups. Dashboard and 800×600/1440×960 layouts; both embedded tools; image upload; Grid Studio sample/calibration/rotation/scale/lens/warp/crop and PNG export; integrated tests.html; Lab channels/heatmap and six export types; configuration save/load; persistent navigation; backend crash/retry while Grid Studio stays available; zero leftover backend processes.
 - **Startup failure:** missing bundled executable yields an actionable error and cleanup can be called repeatedly without failure (`backend-lifecycle.log`).
@@ -55,6 +54,8 @@ Use `SURVEYAPPS_TEST_EXECUTABLE` to test an installed binary and `SURVEYAPPS_TES
 The testing delegate's narrative summary used wrong environment versions, nonexistent API names and incorrect baseline causes. The lead replaced that prose with facts from the actual test code, JSON outputs and independent reruns. No nonexistent two-point calibration, custom fluorophore weighting UI or HTTP shutdown endpoint is claimed here.
 
 The E2E harness now checks error arrays again after teardown. Connection resets/empty responses caused specifically by intentional quit are classified as expected; other late errors still fail. It also waits for the restarted Dash workspace to render before ending the recovery test. This prevents a premature PASS while asynchronous teardown events are still arriving.
+
+> **Note (2026-11-13):** the `v1.0.0` installers below were built before the Grid Studio update to `e6ba1c4`. The source on `main` contains the update; installers built from it have not been published as a release yet.
 
 ## Final release artifacts (`v1.0.0`)
 

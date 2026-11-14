@@ -33,7 +33,7 @@ const defaultWarp = () => ({
 const S = {
   doc: {w: 1200, h: 800},                   // canvas ("plane") size in px. The grid and export use this.
   img: {el: null, w: 0, h: 0, crop: null, ...defaultImageTransform()},   // image layer; x,y = top-left in canvas px, scale = canvas px per image px;
-                                            // crop = {x,y,w,h} in IMAGE px (null = uncropped). Crop only masks the image; canvas + grid are untouched.
+                                            // crop = {x,y,w,h,rot} in IMAGE px, rot° = turn about its centre (null = uncropped). Crop only masks the image; canvas + grid are untouched.
   lens: defaultLens(),                      // fisheye correction (gl.js shader): k1 strength, k2 falloff, cx/cy lens centre 0..1
   warp: defaultWarp(),                      // free distortion (warp.js)
   grid: {                                   // MANUAL grid settings (chip mode overrides size/spacing, see presets.js)

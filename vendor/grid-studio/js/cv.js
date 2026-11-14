@@ -87,13 +87,14 @@ function cvFFT(re, im, n, off, stride) {            // in-place radix-2 FFT of n
 function cvFFT2(re, im, n) { for (let y = 0; y < n; y++) cvFFT(re, im, n, y * n, 1); for (let x = 0; x < n; x++) cvFFT(re, im, n, x, n); }
 
 /** Find the two frequency vectors (cycles per pixel of the w×h image) of a square lattice.
- *  features: one or more feature images; their power spectra are ADDED (e.g. |gx| and |gy| separately, which keeps the lattice
- *  axes stronger than the lattice diagonal). fLo/fHi bound the search (cycles/px).
+ *  features: one or more feature images; their power spectra are ADDED, each scaled to the same mean power in the search band
+ *  (e.g. |gx| and |gy| separately, which keeps the lattice axes stronger than the lattice diagonal, plus the brightness itself). fLo/fHi bound the search (cycles/px).
  *  Returns {f1, f2, strength} or null. f1 is the more x-aligned one (f1.x > 0), f2.y > 0. */
 function cvLatticePeaks(features, w, h, fLo, fHi) {
   const dec = Math.max(1, Math.ceil(Math.max(w, h) / 1024)), dw = Math.floor(w / dec), dh = Math.floor(h / dec);
   let n = 256; while (n < Math.max(dw, dh)) n <<= 1;
   const P = new Float64Array(n * n), re = new Float64Array(n * n), im = new Float64Array(n * n);
+  const freq = k => (k < n / 2 ? k : k - n) / n / dec;                                                                        // bin → cycles per image px
   for (const E of features) {
     re.fill(0); im.fill(0);
     for (let y = 0; y < dh; y++) {
@@ -104,11 +105,13 @@ function cvLatticePeaks(features, w, h, fLo, fHi) {
       }
     }
     cvFFT2(re, im, n);
-    for (let i = 0; i < P.length; i++) P[i] += re[i] * re[i] + im[i] * im[i];
+    let band = 0, nb = 0;                                                    // each feature counts equally: scale by its mean power in the search band
+    for (let ky = 0; ky < n; ky++) for (let kx = 0; kx <= n / 2; kx++) { const r = Math.hypot(freq(kx), freq(ky)); if (r >= fLo && r <= fHi) { const i = ky * n + kx; band += re[i] * re[i] + im[i] * im[i]; nb++; } }
+    const sc = nb / (band + 1e-30);
+    for (let i = 0; i < P.length; i++) P[i] += sc * (re[i] * re[i] + im[i] * im[i]);
   }
   const at = (kx, ky) => P[((ky + n) % n) * n + ((kx + n) % n)];
   const smooth = (kx, ky) => { let s = 0; for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) s += at(kx + i, ky + j); return s / 9; };
-  const freq = k => (k < n / 2 ? k : k - n) / n / dec;                                                                        // bin → cycles per image px
   const peaks = [], bandVals = [];
   for (let ky = 0; ky < n; ky++) for (let kx = 0; kx <= n / 2; kx++) {
     const fx = freq(kx), fy = freq(ky), r = Math.hypot(fx, fy);
@@ -137,53 +140,76 @@ function cvLatticePeaks(features, w, h, fLo, fHi) {
   // that generates the strongest pair with whole-number combinations.
   const generates = q => {
     const det = q.a.x * q.b.y - q.a.y * q.b.x; if (Math.abs(det) < 1e-12) return false;
-    return [best.a, best.b].every(v => { const m = (v.x * q.b.y - v.y * q.b.x) / det, n = (q.a.x * v.y - q.a.y * v.x) / det; return Math.abs(m - Math.round(m)) < .15 && Math.abs(n - Math.round(n)) < .15 && (Math.round(m) || Math.round(n)); });
+    return [best.a, best.b].every(v => { const m = (v.x * q.b.y - v.y * q.b.x) / det, n = (q.a.x * v.y - q.a.y * v.x) / det; return Math.abs(m - Math.round(m)) < .08 && Math.abs(n - Math.round(n)) < .08 && (Math.round(m) || Math.round(n)); });   // (.08: a clutter peak 10% beside the true one must not pass as its "basis")
   };
   const len = q => Math.hypot(q.a.x, q.a.y) + Math.hypot(q.b.x, q.b.y);
   const pick = pairs.filter(q => q.score >= .2 * best.score && generates(q)).sort((p, q) => len(p) - len(q))[0] || best;
   let f1 = pick.a, f2 = pick.b; if (Math.abs(f2.x) > Math.abs(f1.x)) [f1, f2] = [f2, f1];
   f1 = f1.x < 0 ? {x: -f1.x, y: -f1.y} : {x: f1.x, y: f1.y}; f2 = f2.y < 0 ? {x: -f2.x, y: -f2.y} : {x: f2.x, y: f2.y};
-  return {f1, f2, strength: pick.score / median};
+  return {f1, f2, strength: pick.score / median, top: kept.slice(0, 10).map(p => ({x: p.x, y: p.y, p: p.p / median}))};   // top = strongest peaks, for troubleshooting
 }
 
-/** Complex demodulation of the line family with frequency vector f (cycles/px).
- *  Returns re/im of the local phasor (blurred over ~1.2 periods), sampled on a coarse grid, plus the line-strength image `lines`.
- *  Walls are where  f·r + atan2(im, re)/2π  is an integer. Uses |gradient along f| so dark and bright walls behave the same. */
-function cvDemodulate(gx, gy, w, h, f, step) {
+/** Complex demodulation of the line family with frequency vector f (cycles/px): where are the walls, locally?
+ *  Two measurements are made:
+ *   - EDGE phasor, from |gradient along f|: sharp, and it knows which half of the period is the wall (the two edges of a wall sit close
+ *     together), but it only works where the wells are crisp.
+ *   - LINEAR phasor, from `flat` (the brightness minus its slow background, over about one pitch) at the well PITCH (f for q = 1, f/2 for q = 2, where it is squared so that
+ *     it repeats at the half pitch): keeps faint wells (seen through tissue, blur, glare) that the rectified edge signal loses in the
+ *     noise. On its own it cannot tell bright walls from bright wells (and shading shifts it a little), so the caller calibrates its
+ *     phase against the edge phasor (see "calibrate" in autofit.js).
+ *  Returns, on a coarse grid: re/im/amp of the LINEAR phasor and ere/eim of the EDGE phasor.
+ *  Walls are where f·r + atan2(im, re)/2π is an integer (once calibrated). */
+function cvDemodulate(flat, gx, gy, w, h, f, step, q = 1) {
   const len = Math.hypot(f.x, f.y), ux = f.x / len, uy = f.y / len, period = 1 / len, E = new Float32Array(w * h);
   for (let i = 0; i < E.length; i++) E[i] = Math.abs(gx[i] * ux + gy[i] * uy);
-  const bg = cvBlur(E, w, h, period), re = new Float32Array(w * h), im = new Float32Array(w * h);
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const i = y * w + x, v = E[i] - bg[i], a = -2 * Math.PI * (f.x * x + f.y * y); E[i] = v; re[i] = v * Math.cos(a); im[i] = v * Math.sin(a);
-  }
-  const br = cvBlur(re, w, h, 1.2 * period), bi = cvBlur(im, w, h, 1.2 * period);
+  const bg = cvBlur(E, w, h, period), re = new Float32Array(w * h), im = new Float32Array(w * h), lre = new Float32Array(w * h), lim = new Float32Array(w * h);
+  // multiply by exp(−2πi f·r): the carrier is advanced along each row by a fixed rotation instead of calling cos/sin per pixel
+  const mix = (fx, fy, src, sub, oRe, oIm) => {
+    const cd = Math.cos(-2 * Math.PI * fx), sd = Math.sin(-2 * Math.PI * fx);
+    for (let y = 0; y < h; y++) {
+      let c = Math.cos(-2 * Math.PI * fy * y), s = Math.sin(-2 * Math.PI * fy * y);
+      for (let x = 0, i = y * w; x < w; x++, i++) { const v = sub ? src[i] - sub[i] : src[i]; oRe[i] = v * c; oIm[i] = v * s; const n = c * cd - s * sd; s = c * sd + s * cd; c = n; }
+    }
+  };
+  mix(f.x, f.y, E, bg, re, im); mix(f.x / q, f.y / q, flat, null, lre, lim);
+  const pitch = period * q, er = cvBlur(re, w, h, 1.2 * period), ei = cvBlur(im, w, h, 1.2 * period), br = cvBlur(lre, w, h, 1.2 * pitch), bi = cvBlur(lim, w, h, 1.2 * pitch);
   const cw = Math.floor((w - (step >> 1) - 1) / step) + 1, ch = Math.floor((h - (step >> 1) - 1) / step) + 1;
-  const cre = new Float32Array(cw * ch), cim = new Float32Array(cw * ch), amp = new Float32Array(cw * ch);
+  const cre = new Float32Array(cw * ch), cim = new Float32Array(cw * ch), amp = new Float32Array(cw * ch), ere = new Float32Array(cw * ch), eim = new Float32Array(cw * ch);
   for (let j = 0; j < ch; j++) for (let i = 0; i < cw; i++) {
-    const s = (j * step + (step >> 1)) * w + i * step + (step >> 1), o = j * cw + i; cre[o] = br[s]; cim[o] = bi[s]; amp[o] = Math.hypot(br[s], bi[s]);
+    const s = (j * step + (step >> 1)) * w + i * step + (step >> 1), o = j * cw + i, a = Math.hypot(br[s], bi[s]); amp[o] = a; ere[o] = er[s]; eim[o] = ei[s];
+    if (q === 2) { cre[o] = a ? -(br[s] * br[s] - bi[s] * bi[s]) / a : 0; cim[o] = a ? -2 * br[s] * bi[s] / a : 0; }      // −z²/|z|: edges on the integers
+    else { cre[o] = br[s]; cim[o] = bi[s]; }
   }
-  for (let i = 0; i < E.length; i++) E[i] = Math.abs(E[i]);
-  return {re: cre, im: cim, amp, cw, ch, lines: cvBlur(E, w, h, 1)};
+  return {re: cre, im: cim, amp, ere, eim, cw, ch};
 }
 
-/** Quality-guided flood-fill phase unwrapping. phase in cycles; only cells with mask[i] are visited, strongest first. Returns Float32Array (NaN = not reached). */
-function cvUnwrap(phase, amp, mask, cw, ch) {
-  const out = new Float32Array(cw * ch).fill(NaN); let seed = -1, best = -1;
-  for (let i = 0; i < amp.length; i++) if (mask[i] && amp[i] > best) { best = amp[i]; seed = i; }
-  if (seed < 0) return out;
-  const heap = [];                                                       // binary max-heap of cell indices keyed by amplitude
+/** Quality-guided flood-fill phase unwrapping. phase in cycles; only cells with mask[i] are visited, best quality first.
+ *  Every connected patch of the mask is unwrapped on its own (patches have no known whole-line offset to each other).
+ *  Returns {un: Float32Array (NaN = not in the mask), label: patch number per cell (0 = none), main: the largest patch, count}.
+ *  Use the largest patch as the reference (a bright stripe or an island of clutter can then never be it) and attach the others
+ *  once a model can tell their whole-line offsets. */
+function cvUnwrap(phase, quality, mask, cw, ch) {
+  const out = new Float32Array(cw * ch).fill(NaN), label = new Int32Array(cw * ch), amp = quality;
+  const order = []; for (let i = 0; i < mask.length; i++) if (mask[i]) order.push(i);
+  order.sort((a, b) => amp[b] - amp[a]);
+  const heap = [];                                                       // binary max-heap of cell indices keyed by quality
   const push = i => { heap.push(i); let c = heap.length - 1; while (c > 0) { const p = (c - 1) >> 1; if (amp[heap[p]] >= amp[heap[c]]) break; [heap[p], heap[c]] = [heap[c], heap[p]]; c = p; } };
   const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let p = 0; for (;;) { let l = 2 * p + 1, r = l + 1, m = p; if (l < heap.length && amp[heap[l]] > amp[heap[m]]) m = l; if (r < heap.length && amp[heap[r]] > amp[heap[m]]) m = r; if (m === p) break; [heap[p], heap[m]] = [heap[m], heap[p]]; p = m; } } return top; };
-  out[seed] = phase[seed]; push(seed);
-  while (heap.length) {
-    const i = pop(), x = i % cw, y = (i / cw) | 0;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= cw || ny >= ch) continue;
-      const j = ny * cw + nx; if (!mask[j] || !isNaN(out[j])) continue;
-      out[j] = phase[j] - Math.round(phase[j] - out[i]); push(j);
+  let nLabel = 0, bestLabel = 0, bestSize = 0;
+  for (const seed of order) {
+    if (label[seed]) continue;
+    let size = 1; label[seed] = ++nLabel; out[seed] = phase[seed]; push(seed);
+    while (heap.length) {
+      const i = pop(), x = i % cw, y = (i / cw) | 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= cw || ny >= ch) continue;
+        const j = ny * cw + nx; if (!mask[j] || label[j]) continue;
+        out[j] = phase[j] - Math.round(phase[j] - out[i]); label[j] = nLabel; size++; push(j);
+      }
     }
+    if (size > bestSize) { bestSize = size; bestLabel = nLabel; }
   }
-  return out;
+  return {un: out, label, main: bestLabel, count: nLabel};
 }
 
 /* ---------------- small dense maths ---------------- */

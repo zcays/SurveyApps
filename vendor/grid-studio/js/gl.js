@@ -4,7 +4,7 @@
  * PIPELINE (renderGL): source texture → [pass 1: fragment shader: translate/scale/rotate + radial lens correction]
  *   → (only if a distortion is set) offscreen texture → [pass 2: warped mesh, vertices from warp.js] → canvas.
  * Pass 1 is an INVERSE mapping (for each output pixel, where does it come from); pass 2 is a FORWARD mesh.
- * Crop (S.img.crop) is a mask applied in the corrected-image space, so it moves/scales/rotates with the image and never touches the grid.
+ * Crop (S.img.crop, an oriented rectangle: see cropFrame() in crop.js) is a mask applied in the corrected-image space, so it moves/scales/rotates with the image and never touches the grid.
  * Lens model: sample radius r' = r·(1 − k1·r² − k2·r⁴), r normalised by half the image diagonal. +k1 fixes barrel/fisheye.
  * This is the GPU path. render.js falls back to cpu.js (same maths, software) when WebGL is unavailable — keep them in sync.
  * Premultiplied alpha is used throughout. Add new image effects to FRAGMENT_SRC (and a uniform in UNIFORMS + drawImagePass). */
@@ -18,7 +18,8 @@ const FRAGMENT_SRC = `
 precision highp float;
 uniform sampler2D u_tex;
 uniform vec2 u_doc, u_img, u_pos, u_c;
-uniform vec4 u_crop;                                      // image crop rect (x, y, w, h) in image px
+uniform vec4 u_crop;                                      // image crop: centre (x, y) and half size (w/2, h/2) in image px
+uniform vec2 u_cropRot;                                   // cos, sin of the crop rectangle's turn about its centre
 uniform float u_scale, u_rot, u_k1, u_k2;
 varying vec2 v;
 void main(){
@@ -28,7 +29,9 @@ void main(){
   float c = cos(-u_rot), s = sin(-u_rot);
   d = vec2(c*d.x - s*d.y, s*d.x + c*d.y);                // undo rotation
   vec2 q  = d / u_scale + u_img * 0.5;                   // pixel in the corrected image
-  if (q.x < u_crop.x || q.y < u_crop.y || q.x > u_crop.x + u_crop.z || q.y > u_crop.y + u_crop.w) { gl_FragColor = vec4(0.); return; }   // outside the crop
+  vec2 e  = q - u_crop.xy;                               // position in the crop rectangle's own (turned) frame
+  e = vec2(u_cropRot.x*e.x + u_cropRot.y*e.y, u_cropRot.x*e.y - u_cropRot.y*e.x);
+  if (abs(e.x) > u_crop.z || abs(e.y) > u_crop.w) { gl_FragColor = vec4(0.); return; }   // outside the crop
   vec2 lc = u_c * u_img;                                 // lens centre
   float R = 0.5 * length(u_img);
   vec2 n  = (q - lc) / R;
@@ -38,7 +41,7 @@ void main(){
   if (uv.x < 0. || uv.y < 0. || uv.x > 1. || uv.y > 1.) { gl_FragColor = vec4(0.); return; }
   gl_FragColor = texture2D(u_tex, uv);
 }`;
-const UNIFORMS = ['u_tex', 'u_crop', 'u_doc', 'u_img', 'u_pos', 'u_c', 'u_scale', 'u_rot', 'u_k1', 'u_k2'];
+const UNIFORMS = ['u_tex', 'u_crop', 'u_cropRot', 'u_doc', 'u_img', 'u_pos', 'u_c', 'u_scale', 'u_rot', 'u_k1', 'u_k2'];
 
 const WARP_VERTEX_SRC = `
 attribute vec2 a_pos; attribute vec2 a_uv; varying vec2 v;
@@ -130,8 +133,8 @@ function drawImagePass(w, h) {
   gl.disableVertexAttribArray(1);
   gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texture); gl.uniform1i(uniform.u_tex, 0);
-  const cr = I.crop || {x: -1e6, y: -1e6, w: 2e6, h: 2e6};     // no crop = no mask (the lens may show content beyond the original edges)
-  gl.uniform4f(uniform.u_crop, cr.x, cr.y, cr.w, cr.h);
+  const cr = cropFrame(I.crop);                                // no crop = no mask (the lens may show content beyond the original edges)
+  gl.uniform4f(uniform.u_crop, cr.cx, cr.cy, Math.min(cr.hw, 1e6), Math.min(cr.hh, 1e6)); gl.uniform2f(uniform.u_cropRot, cr.cos, cr.sin);
   gl.uniform2f(uniform.u_doc, w, h);
   gl.uniform2f(uniform.u_img, I.w, I.h);
   gl.uniform2f(uniform.u_pos, I.x, I.y);

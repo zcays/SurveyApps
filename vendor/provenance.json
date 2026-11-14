@@ -1,25 +1,12 @@
 {
   "appA": {
     "url": "https://github.com/zcays/Digital-Microscope-Gridoverlay-Studio",
-    "commit": "212374d713c89a8ecd5a4fd3980c82cd55bd2c0c",
-    "includesUserWorkingTreeChanges": [
-      "grid-studio/js/autofit.js",
-      "grid-studio/js/panels.js",
-      "grid-studio/js/state.js",
-      "grid-studio/js/warp.js",
-      "grid-studio/tests.html"
-    ]
+    "commit": "e6ba1c4",
+    "note": "vendor/grid-studio/ is an exact copy of grid-studio/ at this commit (git archive), without samples/. No working-tree changes and no SurveyApps patch."
   },
   "appB": {
     "url": "https://github.com/zcays/Microscopy-Grid-Overlay",
     "commit": "caf7312461360903f340f55e577d16b5f86c5ac2"
-  },
-  "originalDirtyHashes": {
-    "grid-studio/js/autofit.js": "6df972781746c4754dc87d2377b1d72c9107f9dddefaa6a21bc12e95036d06d5",
-    "grid-studio/js/panels.js": "b1d3c81de37cd66779ccd6a07aa7a8e6d2ad929072b6a2b5db19591fc012b911",
-    "grid-studio/js/state.js": "95367a73b68747c861f79cdb74aa3bb559fb10c5a298a7b7b009e6854a6dc46c",
-    "grid-studio/js/warp.js": "baaebccf8fb028ad294205b5b30532889e1e0562dfff28ee45580237d73a5d53",
-    "grid-studio/tests.html": "cdbbcbb6dd485c45940cb63228ad1b719361252f6455be7f3c7aed4f57ffdf38"
   },
   "excluded": [
     "grid-studio/samples/",
@@ -29,10 +16,6 @@
   ],
   "licenseNote": "No LICENSE file found in either tracked source snapshot. Local user-requested integration only; confirm redistribution rights before public distribution.",
   "surveyappsPatches": [
-    {
-      "path": "vendor/grid-studio/js/autofit.js",
-      "reason": "Reject excessive starting phase spread before distortion-only fitting; all original user files retained unchanged."
-    },
     {
       "path": "backend/microscopy_app.py",
       "reason": "Offline initialization, desktop UI, consistency and compatibility fixes; see docs/UPSTREAM_CHANGES.md."

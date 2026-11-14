@@ -1,6 +1,6 @@
 # Source preservation and integration changes
 
-`vendor/provenance.json` records both pinned commits and SHA-256 of all five original dirty App A files. `vendor/grid-studio/` is the tracked working-tree snapshot, including these edits. `vendor/microscopy/` preserves the original scientific Python sources. No user photos, unrelated essay, machine configuration or git metadata are included.
+`vendor/provenance.json` records both pinned commits. `vendor/grid-studio/` is an exact, unpatched copy of Grid Studio at commit `e6ba1c4` (updated 2026-11-13: Auto-fit that works through tissue on every chip version, and a crop that keeps straight edges on a rotated image). `vendor/microscopy/` preserves the original scientific Python sources. No user photos, unrelated essay, machine configuration or git metadata are included.
 
 The runtime copy `backend/microscopy_app.py` retains upstream algorithms and callbacks. Targeted changes:
 
@@ -18,12 +18,8 @@ Scientific limits retained: images convert to RGB 8-bit; multi-page TIFF uses th
 
 Neither repository snapshot contains a LICENSE. Confirm public redistribution rights before distributing outside the authorized local project. Dependencies retain their own licenses in the bundled runtimes and source lockfiles.
 
-Grid Studio runtime snapshot correction: distortion-only fitting now rejects an absolute phase residual 90th–10th percentile spread over 1.5 lattice periods before fitting flexible corners. The original dirty implementation could absorb a gross rotation error into the warp and report success; its refusal test and following mesh test failed. This small guard, stored with the other `AF` thresholds, restores 100/100 vendored tests without changing rendering math or the original five dirty files. The optional user-photo test is excluded from the package.
+Grid Studio: SurveyApps used to carry one small patch to `autofit.js` (a start-spread guard for distortion-only fitting). Upstream now has its own safeguards for that case and its self-tests pass unmodified, so the patch was dropped and the vendored copy equals upstream.
 
 Plotly compatibility: change deprecated heatmap axis `titlefont` to `title.font`. Plotly 7 otherwise raised a callback error after fluorescence computation.
 
-Reconstruction patches are included in `vendor/app-a-user-changes.patch`,
-`vendor/app-a-surveyapps.patch` and `vendor/app-b-surveyapps.patch`.
-Apply the user patch to pinned App A, then the small SurveyApps patch; App B's
-original file is retained alongside its complete runtime diff. No original repo
-working-tree file is edited by SurveyApps build or test commands.
+The App B runtime diff is included as `vendor/app-b-surveyapps.patch`, with the original file retained alongside. App A needs no patch (see above). No original repo working-tree file is edited by SurveyApps build or test commands.

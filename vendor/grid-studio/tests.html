@@ -96,6 +96,15 @@ frame.onload = () => setTimeout(async () => {
     E('resetImageTransform()'); return near(r.x, 100) && near(r.y, 50) && near(r.w, 200) && near(r.h, 100);
   });
 
+  test('crop on a ROTATED image keeps the straight edges that were drawn (not a slanted box)', () => {
+    E("resetImageTransform(); resetLens(); resetWarp(); S.img.crop = null; S.img.rot = 20; S.grid.visible = false; setTool('crop'); S.crop = {x: 400, y: 250, w: 400, h: 300}; applyCrop()");
+    const cr = E('S.img.crop'), c = E('buildExportCanvas({image: true, grid: false})'), a = (x, y) => c.getContext('2d').getImageData(x, y, 1, 1).data[3];
+    const inside = [[406, 256], [794, 256], [794, 544], [406, 544], [600, 400]].every(([x, y]) => a(x, y) > 200);          // just inside every corner of the drawn box
+    const outside = [[394, 400], [806, 400], [600, 244], [600, 556], [394, 244], [806, 556]].every(([x, y]) => a(x, y) < 30);   // just outside its sides and corners
+    E("S.img.rot = 0; S.img.crop = null; S.grid.visible = true; undoStack.length = 0; updateUndoButton(); setTool('move'); refresh('gl', 'grid', 'crop')");
+    return near(cr.rot, -20) && near(cr.w, 400) && near(cr.h, 300) && inside && outside;
+  });
+
   // ---- software renderer (used when WebGL / hardware acceleration is off) ----
   // 1) forced software mode in a second copy of the app: index.html?renderer=cpu
   const f2 = document.createElement('iframe'); f2.src = 'index.html?renderer=cpu&t=' + Date.now(); document.body.append(f2);
@@ -111,7 +120,7 @@ frame.onload = () => setTimeout(async () => {
   if (E('useGL')) {
     const states = {
       identity: '', lens: 'S.lens.k1 = .25; S.lens.k2 = .05', rotate: 'S.img.rot = 12; S.img.x = 40; S.img.scale = .9',
-      crop: 'S.img.crop = {x: 200, y: 100, w: 700, h: 500}', warp: 'S.warp.c.se = {x: .92, y: .88}; S.warp.dev.w = {x: -.03, y: 0}',
+      crop: 'S.img.crop = {x: 200, y: 100, w: 700, h: 500}', cropTurnedPlain: 'S.img.rot = -25; S.img.crop = {x: 300, y: 200, w: 500, h: 300, rot: 25}', cropTurned: 'S.img.rot = 15; S.img.crop = {x: 250, y: 150, w: 600, h: 400, rot: -15}; S.lens.k1 = .1', warp: 'S.warp.c.se = {x: .92, y: .88}; S.warp.dev.w = {x: -.03, y: 0}',
       combined: 'S.lens.k1 = .2; S.img.rot = -6; S.warp.c.ne = {x: .95, y: .05}',
       fineMesh: 'S.warp.c.sw = {x: .03, y: .97}; S.warp.mesh = {n: 17, d: Array.from({length: 2 * 17 * 17}, (_, k) => .006 * Math.sin(k * .37))}',
     };
@@ -134,7 +143,7 @@ frame.onload = () => setTimeout(async () => {
   const w3 = f3.contentWindow, E3 = code => w3.eval(code);
   E3(`
     // an ideal chip (dark walls, bright wells, some glints), rotated, then pushed through a barrel (fisheye) distortion + noise
-    window.makeChipPhoto = (chipId, {W = 1500, H = 1125, fill = .8, angle = 3, barrel = .08, noise = 18, seed = 1, bulge = 0} = {}) => {
+    window.makeChipPhoto = (chipId, {W = 1500, H = 1125, fill = .8, angle = 3, barrel = .08, noise = 18, seed = 1, bulge = 0, tissue = 0, tissueContrast = .25, opaque = 0, glare = false} = {}) => {
       const P = CHIPS.find(c => c.id === chipId); let rnd = seed; const rand = () => { rnd = (rnd * 1664525 + 1013904223) % 4294967296; return rnd / 4294967296; };
       const SW = Math.round(W * 1.4), SH = Math.round(H * 1.4), sc = document.createElement('canvas'); sc.width = SW; sc.height = SH; const x = sc.getContext('2d');
       x.fillStyle = '#2b3a38'; x.fillRect(0, 0, SW, SH);
@@ -147,6 +156,54 @@ frame.onload = () => setTimeout(async () => {
         if (rand() < .35) { x.fillStyle = '#fff'; x.beginPath(); x.arc(i * pitch + well * (.2 + .6 * rand()), j * pitch + well * (.2 + .6 * rand()), well * .09, 0, 7); x.fill(); }
       }
       x.setTransform(1, 0, 0, 1, 0, 0);
+      const aRad = angle * Math.PI / 180, cs = Math.cos(aRad), sn = Math.sin(aRad), R = Math.hypot(W, H) / 2;
+      if (tissue > 0) {
+        const sd = x.getImageData(0, 0, SW, SH), p = sd.data, nb = tissue > .55 ? 2 : 1, blobs = [];
+        const baseR = Math.sqrt(aw * ah * tissue / (nb * Math.PI)) * 1.05;
+        for (let b = 0; b < nb; b++) {
+          const cx = (.32 + .24 * b + .12 * (rand() - .5)) * aw, cy = (.34 + .22 * (1 - b) + .12 * (rand() - .5)) * ah;
+          blobs.push({cx, cy, rx: baseR * (.92 + .18 * rand()), ry: baseR * (.88 + .18 * rand()), rot: rand() * Math.PI,
+            p1: rand() * 6.28, p2: rand() * 6.28, p3: rand() * 6.28, opX: cx + (rand() - .5) * baseR * .4, opY: cy + (rand() - .5) * baseR * .4, opR: baseR * Math.sqrt(Math.max(0, opaque))});
+        }
+        const m1x = (.2 + .6 * rand()) * aw, m1y = (.2 + .6 * rand()) * ah, m2x = (.2 + .6 * rand()) * aw, m2y = (.2 + .6 * rand()) * ah;
+        const p1x = (.2 + .6 * rand()) * aw, p1y = (.2 + .6 * rand()) * ah, p2x = (.2 + .6 * rand()) * aw, p2y = (.2 + .6 * rand()) * ah, invD = 1 / Math.hypot(aw, ah);
+        const rimW = 2.5 / Math.max(8, baseR);
+        const x0 = Math.max(0, Math.floor(SW / 2 - Math.hypot(aw, ah) * .75)), x1 = Math.min(SW - 1, Math.ceil(SW / 2 + Math.hypot(aw, ah) * .75));
+        const y0 = Math.max(0, Math.floor(SH / 2 - Math.hypot(aw, ah) * .75)), y1 = Math.min(SH - 1, Math.ceil(SH / 2 + Math.hypot(aw, ah) * .75));
+        for (let sy = y0; sy <= y1; sy++) for (let sx = x0; sx <= x1; sx++) {
+          const dx = sx - SW / 2, dy = sy - SH / 2, u = cs * dx + sn * dy + aw / 2, v = -sn * dx + cs * dy + ah / 2;
+          let dMin = 1e9, opMin = 1e9;
+          for (let b = 0; b < nb; b++) {
+            const B = blobs[b], bu = u - B.cx, bv = v - B.cy, cB = Math.cos(B.rot), sB = Math.sin(B.rot);
+            const rx = (cB * bu + sB * bv) / B.rx, ry = (-sB * bu + cB * bv) / B.ry, r = Math.hypot(rx, ry), th = Math.atan2(ry, rx);
+            const wv = 1 + .1 * Math.cos(2 * th + B.p1) + .07 * Math.cos(3 * th + B.p2) + .04 * Math.cos(5 * th + B.p3), d = r / wv;
+            if (d < dMin) dMin = d;
+            if (B.opR > 0) { const od = Math.hypot(u - B.opX, v - B.opY) / B.opR; if (od < opMin) opMin = od; }
+          }
+          if (dMin < 1 + rimW) {
+            const idx = (sy * SW + sx) * 4;
+            if (dMin >= 1 - rimW) {
+              const rk = 1 - Math.abs(dMin - 1) / rimW, a = .78 * rk;
+              p[idx] = p[idx] * (1 - a) + 242 * a; p[idx + 1] = p[idx + 1] * (1 - a) + 248 * a; p[idx + 2] = p[idx + 2] * (1 - a) + 230 * a;
+            } else {
+              const mod = 1 + .5 * Math.sin((u - m1x) * invD * 5) * Math.cos((v - m1y) * invD * 5) + .25 * Math.cos((u - m2x) * invD * 8), tc = opMin < 1 ? 0 : Math.min(1, Math.max(.5 * tissueContrast, Math.min(1.5 * tissueContrast, tissueContrast * mod)));
+              const pr = Math.exp(-((u - p1x) * (u - p1x) + (v - p1y) * (v - p1y)) * invD * invD * 18), pb = Math.exp(-((u - p2x) * (u - p2x) + (v - p2y) * (v - p2y)) * invD * invD * 18);
+              const tr = 178 + 38 * pr + 28 * pb, tg = 192 - 36 * pr + 22 * pb, tb = 136 - 26 * pr + 74 * pb, edge = Math.min(1, (1 - dMin) * 14), a = (1 - tc) * edge;
+              p[idx] = p[idx] * (1 - a) + tr * a; p[idx + 1] = p[idx + 1] * (1 - a) + tg * a; p[idx + 2] = p[idx + 2] * (1 - a) + tb * a;
+            }
+          }
+        }
+        x.putImageData(sd, 0, 0);
+      }
+      if (glare) {
+        const gx0 = Math.round(SW / 2 + W * .41), gw = Math.max(8, Math.round(W * .03));
+        x.fillStyle = '#0e1413'; x.fillRect(gx0 - Math.round(W * .045), 0, Math.round(W * .09) + gw, SH);
+        const gr = x.createLinearGradient(gx0, 0, gx0 + gw, 0);
+        gr.addColorStop(0, '#5a6a66'); gr.addColorStop(.25, '#f4f8f6'); gr.addColorStop(.65, '#ffffff'); gr.addColorStop(1, '#4a5855');
+        x.fillStyle = gr; x.fillRect(gx0, 0, gw, SH);
+        x.fillStyle = '#f6faf8';
+        for (let s = 0; s < 22; s++) { x.beginPath(); x.arc(SW / 2 + (rand() - .5) * W * .92, SH / 2 + (rand() - .5) * H * .92, 1.2 + rand() * 2.3, 0, 7); x.fill(); }
+      }
       const out = barrelDistort(sc, W, H, barrel), o = out.getContext('2d'), d = o.getImageData(0, 0, W, H);
       if (bulge) {                                                 // local, smooth displacement of up to bulge × pitch (a warped chip)
         const src = new Uint8ClampedArray(d.data), amp = bulge * pitch;
@@ -156,7 +213,14 @@ frame.onload = () => setTimeout(async () => {
         }
       }
       for (let i = 0; i < d.data.length; i += 4) { const n = (rand() - .5) * 2 * noise; d.data[i] += n; d.data[i + 1] += n; d.data[i + 2] += n; }
-      o.putImageData(d, 0, 0); return out;
+      o.putImageData(d, 0, 0);
+      const toSrc = (u, v) => {
+        const dx = u - aw / 2, dy = v - ah / 2, sx = cs * dx - sn * dy, sy = sn * dx + cs * dy, rm = Math.hypot(sx, sy) / R;
+        let r = rm; for (let k = 0; k < 8; k++) r -= (r * (1 + barrel * r * r) - rm) / (1 + 3 * barrel * r * r);
+        const k = rm > 1e-9 ? r / rm : 1; return {x: W / 2 + sx * k, y: H / 2 + sy * k};
+      };
+      window.__lastChipTruth = {chipId, W, H, pitch, aw, ah, angle, barrel, corners: [[0, 0], [aw, 0], [aw, ah], [0, ah]].map(([u, v]) => toSrc(u, v))};
+      return out;
     };
     // In the RENDERED export: brightness at the grid's well centres vs at its wall centres. Aligned = clearly positive, misaligned = ~0.
     window.alignmentContrast = () => {
@@ -165,10 +229,25 @@ frame.onload = () => setTimeout(async () => {
       for (let j = 1; j < L.j1 - 1; j++) for (let i = 1; i < L.i1 - 1; i++) { const x = L.x0 + i * L.pitchX, y = L.y0 + j * L.pitchY; well += lum(x + L.size / 2, y + L.size / 2); wall += (lum(x - gap / 2, y + L.size / 2) + lum(x + L.size / 2, y - gap / 2)) / 2; }
       return (well - wall) / (well + wall);
     };
+    // Real photos: the array's four corners were located once (source-image px, clockwise from top-left) from a fit checked by eye;
+    // a later fit must put those same points on the grid's array corners. Catches a fit that locks a whole well off, which the
+    // residual statistics cannot see. Returns the worst corner distance in well pitches.
+    window.cornerErrorFor = pts => { const keep = window.__lastChipTruth; window.__lastChipTruth = {corners: pts.map(([x, y]) => ({x, y}))}; const e = cornerAlignmentError(); window.__lastChipTruth = keep; return e; };
+    window.cornerAlignmentError = () => {
+      const T = window.__lastChipTruth, L = gridLayout(S.doc.w, S.doc.h), P = activePreset(); if (!T || !L || !P) return Infinity;
+      const gw = P.wide * L.pitchX - (L.pitchX - L.size), gh = P.long * L.pitchY - (L.pitchY - L.size);
+      const gc = [[L.x0, L.y0], [L.x0 + gw, L.y0], [L.x0 + gw, L.y0 + gh], [L.x0, L.y0 + gh]];
+      const fw = afForward(afCurrent(), {w: S.img.w, h: S.img.h, cx: S.lens.cx, cy: S.lens.cy, docW: S.doc.w, docH: S.doc.h, mesh: S.warp.mesh}), out = [0, 0, 0, 0];
+      const mapped = T.corners.map(p => { fw(p.x, p.y, out); return [out[0], out[1]]; });
+      const errFor = shift => Math.max(...mapped.map((m, k) => { const g = gc[(k + shift) % 4]; return Math.hypot(m[0] - g[0], m[1] - g[1]) / L.pitchX; }));
+      return Math.min(errFor(0), P.wide !== P.long ? errFor(1) : Infinity, P.wide !== P.long ? errFor(3) : Infinity);
+    };
     window.fitSynthetic = (chipId, opts, tick = chipId) => {
       setImage(makeChipPhoto(chipId, opts)); selectChip(null); selectChip(tick); resetLens(); resetWarp();
+      const snap0 = JSON.stringify([S.img.x, S.img.y, S.img.rot, S.img.scale, S.lens.k1, S.warp]);
       const before = alignmentContrast(), r = autoFitNow();
-      return {ok: r.ok, reason: r.reason || '', before, after: r.ok ? alignmentContrast() : null, rot: S.img.rot, k1: S.lens.k1, median: r.stats ? r.stats.medianWell : null, handlesOnly: r.stats ? r.stats.medianHandlesOnly / r.stats.harmonic : null, mesh: !!S.warp.mesh, sides: r.stats ? r.stats.sideErr : null, ms: r.stats ? r.stats.ms : 0};
+      const unchanged = snap0 === JSON.stringify([S.img.x, S.img.y, S.img.rot, S.img.scale, S.lens.k1, S.warp]);
+      return {ok: r.ok, reason: r.reason || '', unchanged, before, after: r.ok ? alignmentContrast() : null, cornerErr: r.ok ? cornerAlignmentError() : null, rot: S.img.rot, k1: S.lens.k1, median: r.stats ? r.stats.medianWell : null, handlesOnly: r.stats ? r.stats.medianHandlesOnly / r.stats.harmonic : null, mesh: !!S.warp.mesh, sides: r.stats ? r.stats.sideErr : null, ms: r.stats ? r.stats.ms : 0};
     };
   `);
   const fitCases = [
@@ -186,16 +265,23 @@ frame.onload = () => setTimeout(async () => {
   { // fine distortion mesh + "Auto-fix distortion"
     const b = E3(`fitSynthetic('V12', {angle: 2, barrel: .06, bulge: .45})`);
     test(`auto-fit with a local bulge the 8 handles cannot follow: fine mesh brings the error from ${b.handlesOnly === null ? '?' : (b.handlesOnly * 100).toFixed(0)}% to ${b.median === null ? '?' : (b.median * 100).toFixed(0)}% of a well (worst side ${b.sides ? (Math.max(...Object.values(b.sides)) * 100).toFixed(0) : '?'}%)`,
-      () => b.ok && b.mesh && b.median < .035 && b.handlesOnly > 2 * b.median && Math.max(...Object.values(b.sides)) < .08 && b.after > .15);
+      () => b.ok && b.mesh && b.median < .035 && b.handlesOnly > 2 * b.median && Math.max(...Object.values(b.sides)) < .08 && b.after > .15 && b.cornerErr < .8);   // (the bulge itself moves the corners by up to ~.6 well; a whole-well slip would read ≥ 1)
     const only = E3(`(() => { const img = JSON.stringify([S.img.x, S.img.y, S.img.rot, S.img.scale, S.lens.k1]); resetWarp(); const r = autoFitNow(true); return {ok: r.ok, same: img === JSON.stringify([S.img.x, S.img.y, S.img.rot, S.img.scale, S.lens.k1]), mesh: !!S.warp.mesh, median: r.stats && r.stats.medianWell, contrast: alignmentContrast()}; })()`);
     test('auto-fix distortion re-creates handles + mesh without touching tilt / size / position / lens', () => only.ok && only.same && only.mesh && only.median < .035 && only.contrast > .15);
-    const far = E3(`(() => { S.img.x += 20; S.img.rot += 3; resetWarp(); const w0 = JSON.stringify(S.warp), r = autoFitNow(true); return {ok: r.ok, reason: r.reason, same: w0 === JSON.stringify(S.warp)}; })()`);
-    test('auto-fix distortion refuses when the image is not roughly lined up (asks for Auto-fit first)', () => !far.ok && far.same && /Auto-fit first/.test(far.reason));
-    test('fine mesh maths: offset at a node is that node, Reset distortion clears the mesh', () => E3(`(() => { const d = new Array(2 * 17 * 17).fill(0); d[2 * (5 * 17 + 3)] = .01; d[2 * (5 * 17 + 3) + 1] = -.02; S.warp.mesh = {n: 17, d}; const o = warpMeshOffset(S.warp.mesh, 3 / 16, 5 / 16), p = warpPoint(3 / 16, 5 / 16), act = warpActive(); resetWarp(); return Math.abs(o.x - .01) < 1e-9 && Math.abs(o.y + .02) < 1e-9 && act && Math.abs(p.x - 3 / 16 - .01) < 1e-9 && S.warp.mesh === null && !warpActive(); })()`));
+    const half = E3(`(() => { const L = gridLayout(S.doc.w, S.doc.h); S.img.x += L.pitchX / 2; S.img.y += L.pitchY / 2; const w0 = JSON.stringify(S.warp), r = autoFitNow(true); const out = {ok: r.ok, reason: r.reason, same: w0 === JSON.stringify(S.warp)}; S.img.x -= L.pitchX / 2; S.img.y -= L.pitchY / 2; return out; })()`);
+    test('auto-fix distortion refuses when the image sits half a well off (asks for Auto-fit first) and changes nothing', () => !half.ok && half.same && /Auto-fit/.test(half.reason));
+    const whole = E3(`(() => { const L = gridLayout(S.doc.w, S.doc.h); S.img.x += L.pitchX; const w0 = JSON.stringify(S.warp), r = autoFitNow(true); const out = {ok: r.ok, reason: r.reason, same: w0 === JSON.stringify(S.warp)}; S.img.x -= L.pitchX; return out; })()`);
+    test(`auto-fix distortion refuses when the image sits one whole well off (would lock one column out): "${(whole.reason || '').slice(0, 50)}…"`, () => !whole.ok && whole.same && /well\(s\) away/.test(whole.reason));
+    test('fine mesh maths: offset at a node is that node, Reset distortion clears the mesh', () => E3(`(() => { resetWarp(); const d = new Array(2 * 17 * 17).fill(0); d[2 * (5 * 17 + 3)] = .01; d[2 * (5 * 17 + 3) + 1] = -.02; S.warp.mesh = {n: 17, d}; const o = warpMeshOffset(S.warp.mesh, 3 / 16, 5 / 16), p = warpPoint(3 / 16, 5 / 16), act = warpActive(); resetWarp(); return Math.abs(o.x - .01) < 1e-9 && Math.abs(o.y + .02) < 1e-9 && act && Math.abs(p.x - 3 / 16 - .01) < 1e-9 && S.warp.mesh === null && !warpActive(); })()`));
   }
   { // must refuse rather than guess
     const blank = E3(`(() => { const c = document.createElement('canvas'); c.width = 1200; c.height = 900; const x = c.getContext('2d'); const g = x.createLinearGradient(0, 0, 1200, 900); g.addColorStop(0, '#234'); g.addColorStop(1, '#9ab'); x.fillStyle = g; x.fillRect(0, 0, 1200, 900); setImage(c); selectChip(null); selectChip('V12'); const before = JSON.stringify([S.img.rot, S.img.scale, S.lens.k1, warpActive()]); const r = autoFitNow(); return {ok: r.ok, reason: r.reason, unchanged: before === JSON.stringify([S.img.rot, S.img.scale, S.lens.k1, warpActive()])}; })()`);
     test('auto-fit refuses a picture with no wells and changes nothing', () => !blank.ok && blank.unchanged && /grid|wells/.test(blank.reason));
+    test('failed auto-fit restores tiled layout, image scale and state object identities', () => E3(`(() => {
+      setChipFit(false); const refs = [S.img, S.lens, S.warp, S.grid, S.chip], before = JSON.stringify([S.doc, S.chip, S.zoom, S.img.scale]);
+      const r = autoFitNow(); const same = refs.every((v, i) => v === [S.img, S.lens, S.warp, S.grid, S.chip][i]) && before === JSON.stringify([S.doc, S.chip, S.zoom, S.img.scale]);
+      setChipFit(true); return !r.ok && same;
+    })()`));
     const wrong = E3(`fitSynthetic('V12', {angle: 2, barrel: .05}, 'V3.1')`);
     test(`auto-fit refuses when the wrong chip version is ticked (V12 photo, V3.1 ticked): "${wrong.reason.slice(0, 60)}…"`, () => !wrong.ok);
     const none = E3(`(() => { selectChip(null); return autoFitNow(); })()`);
@@ -204,10 +290,54 @@ frame.onload = () => setTimeout(async () => {
     test('undo auto-fit restores the previous image settings exactly', () => undo === true);
   }
   // the user's real V12 photo, if it is present locally (samples/ is not in git)
-  const real = await new Promise(res => { const im = new w3.Image(); im.onload = () => { w3.__im = im; res(E3(`(() => { setImage(window.__im); selectChip(null); selectChip('V12'); const r = autoFitNow(); return {ok: r.ok, reason: r.reason, s: r.stats}; })()`)); }; im.onerror = () => res(null); im.src = 'samples/v12-example.jpg'; });
-  if (real) test(`auto-fit on the real V12 photo: first walls ${real.s && real.s.firstWall}, typical error ${real.s && real.s.medianImagePx.toFixed(1)} px, ${real.s && Math.round(real.s.inliers * 100)}% matched`,
-    () => real.ok && Math.abs(real.s.tiltDeg + 2.06) < .3 && real.s.medianWell < .08 && real.s.inliers > .88 && real.s.firstWall[0] === 14 && real.s.firstWall[1] === 2);
+  const real = await new Promise(res => { const im = new w3.Image(); im.onload = () => { w3.__im = im; res(E3(`(() => { setImage(window.__im); selectChip(null); selectChip('V12'); const r = autoFitNow(); return {ok: r.ok, reason: r.reason, s: r.stats, corner: r.ok ? cornerErrorFor([[276.8, 54.4], [1266.3, 86.1], [1231.8, 1099.5], [230.7, 1057.8]]) : null}; })()`)); }; im.onerror = () => res(null); im.src = 'samples/v12-example.jpg'; });
+  if (real) test(`auto-fit on the real V12 photo: ${real.ok ? `array corners within ${real.corner.toFixed(2)} well of the reference, typical error ${real.s.medianImagePx.toFixed(1)} px, ${Math.round(real.s.inliers * 100)}% matched` : 'refused: ' + real.reason}`,
+    () => real.ok && Math.abs(real.s.tiltDeg + 2.1) < .3 && real.s.medianWell < .08 && real.s.inliers > .88 && real.corner < .35);
   else test('auto-fit on the real V12 photo skipped (samples/v12-example.jpg not present)', () => true);
+
+  // ---- Auto-fit on synthetic chip photos with biological tissue + glare (every chip in CHIPS + harder V11/V12 cases) ----
+  for (const [chip, opts] of [['V12', {angle: 3, barrel: .08}], ['V3.1', {angle: -2.5, barrel: .09}]]) {
+    const r = E3(`fitSynthetic(${JSON.stringify(chip)}, ${JSON.stringify(opts)})`); await new Promise(res => setTimeout(res, 0));
+    const turn = Math.round(opts.angle / 90) * 90, wantRot = -(opts.angle - turn) + (turn ? 90 : 0);
+    test(`ground-truth geometric check (no tissue) ${chip}: corner error ${r.cornerErr === null ? 'refused' : r.cornerErr.toFixed(3)} pitch`,
+      () => r.ok && Math.abs(r.rot - wantRot) < .3 && r.cornerErr < .35);
+  }
+  const tissueCases = [
+    ['V1-Square', {W: 1600, H: 1200, fill: .78, angle: 2.5,  barrel: .06, tissue: .7, glare: true, seed: 101}],
+    ['V3.1',      {W: 1500, H: 1125, fill: .78, angle: -2.2, barrel: .08, tissue: .7, glare: true, seed: 102}],
+    ['V3.2',      {W: 1500, H: 1125, fill: .78, angle: 1.8,  barrel: .05, tissue: .7, glare: true, seed: 103}],
+    ['V7.0',      {W: 1800, H: 1350, fill: .80, angle: -3.0, barrel: .07, tissue: .7, glare: true, seed: 104}],
+    ['V9.0',      {W: 2400, H: 1800, fill: .85, angle: 1.5,  barrel: .04, tissue: .7, glare: true, seed: 105, refuse: true}],
+    ['V9.1',      {W: 2000, H: 1500, fill: .82, angle: -1.8, barrel: .05, tissue: .7, glare: true, seed: 106}],
+    ['V9.2',      {W: 2200, H: 1650, fill: .85, angle: 2.0,  barrel: .05, tissue: .7, glare: true, seed: 107}],
+    ['V10.2',     {W: 1600, H: 1200, fill: .78, angle: -2.5, barrel: .09, tissue: .7, glare: true, seed: 108}],
+    ['V11',       {W: 2000, H: 1500, fill: .76, angle: -1.6, barrel: .06, tissue: .7, glare: true, seed: 109}],
+    ['V12',       {W: 1600, H: 1200, fill: .78, angle: 3.2,  barrel: .08, tissue: .7, glare: true, seed: 110}],
+    ['V15.1',     {W: 2100, H: 1575, fill: .82, angle: -1.4, barrel: .04, tissue: .7, glare: true, seed: 111}],
+    ['V15.2',     {W: 1800, H: 1350, fill: .80, angle: 2.4,  barrel: .06, tissue: .7, glare: true, seed: 112}],
+    ['V11',       {W: 2000, H: 1500, fill: .76, angle: 2.1,  barrel: .06, tissue: .8, opaque: .15, tissueContrast: .15, glare: true, seed: 113, hard: true}],
+    ['V12',       {W: 1600, H: 1200, fill: .78, angle: -2.8, barrel: .07, tissue: .8, opaque: .15, tissueContrast: .15, glare: true, seed: 114, hard: true}],
+  ];
+  for (const [chip, opts] of tissueCases) {
+    const r = E3(`fitSynthetic(${JSON.stringify(chip)}, ${JSON.stringify(opts)})`); await new Promise(res => setTimeout(res, 0));
+    if (opts.refuse) {
+      test(`auto-fit ${chip} tissue ${opts.tissue} (pitch < 9 px): clean refusal ("${r.reason.slice(0, 60)}")`,
+        () => !r.ok && r.reason.length > 0 && r.unchanged);
+    } else {
+      const turn = Math.round(opts.angle / 90) * 90, wantRot = -(opts.angle - turn) + (turn ? 90 : 0);
+      const label = opts.hard ? `auto-fit ${chip} hard tissue (tissue .8, opaque .15, contrast .15)` : `auto-fit ${chip} tissue ${opts.tissue} + glare (tilt ${opts.angle}°, fisheye ${opts.barrel})`;
+      const detail = r.ok ? `cornerErr ${r.cornerErr.toFixed(2)} pitch, rotErr ${Math.abs(r.rot - wantRot).toFixed(2)}°` : `refused: ${r.reason}`;
+      test(`${label}: ${detail}`, () => r.ok && Math.abs(r.rot - wantRot) < .3 && r.cornerErr < .35);
+    }
+  }
+  { // Small round wells under opaque tissue: an accepted fit still needs geometric evidence.
+    const r = E3(`fitSynthetic('V9.2', {W: 2000, H: 1500, fill: .85, angle: -1, barrel: .07, tissue: .8, opaque: .15, tissueContrast: .15, glare: true, seed: 46})`);
+    test('small circular wells under hard tissue: accurate fit or unchanged clean refusal', () => r.ok ? r.cornerErr < .35 : r.unchanged && !!r.reason);
+  }
+  const realV11 = await new Promise(res => { const im = new w3.Image(); im.onload = () => { w3.__im11 = im; res(E3(`(() => { setImage(window.__im11); selectChip(null); selectChip('V11'); const r = autoFitNow(); return {ok: r.ok, reason: r.reason, s: r.stats, corner: r.ok ? cornerErrorFor([[215.2, 74.1], [1573.2, 56.5], [1588.2, 1416.6], [234.4, 1429.4]]) : null, msg: afMessage(r, false)}; })()`)); }; im.onerror = () => res(null); im.src = 'samples/v11-tissue-example.jpg'; });
+  if (realV11) test(`auto-fit on the real V11 photo with tissue over most of the array: ${realV11.ok ? `array corners within ${realV11.corner.toFixed(2)} well of the reference, typical error ${(realV11.s.medianWell * 100).toFixed(0)}% of a well, ${Math.round(realV11.s.inliers * 100)}% matched, wells seen in ${Math.round(realV11.s.visible * 100)}% of the array` : 'refused: ' + realV11.reason}`,
+    () => realV11.ok && realV11.s.inliers > .8 && realV11.s.medianWell < .1 && realV11.corner < .35 && realV11.s.edgeSure[0] > 1.5 && realV11.s.edgeSure[1] > 1.5);
+  else test('auto-fit on the real V11 tissue photo skipped (samples/v11-tissue-example.jpg not present)', () => true);
 
   const bad = results.filter(r => !r[1]);
   out.innerHTML = `<p class="${bad.length ? 'bad' : 'ok'}">${results.length - bad.length} / ${results.length} passed</p>` +

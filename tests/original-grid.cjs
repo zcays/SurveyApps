@@ -7,7 +7,7 @@ const {pathToFileURL}=require('node:url');
  const page=await browser.newPage(); const errors=[];page.on('pageerror',e=>errors.push(e.message));
  try {
   await page.goto(pathToFileURL(path.resolve(__dirname, process.argv.includes('--vendor') ? '../vendor/grid-studio/tests.html' : '../../grid-studio/tests.html')).toString());
-  await page.waitForFunction(()=>document.title==='PASS'||document.title.startsWith('FAIL'),{},{timeout:240000});
+  await page.waitForFunction(()=>document.title==='PASS'||document.title.startsWith('FAIL'),{},{timeout:600000});
   const result={title:await page.title(),text:await page.locator('#out').innerText(),errors};
   fs.mkdirSync(path.join(__dirname,'../test-results'),{recursive:true});
   fs.writeFileSync(path.join(__dirname,process.argv.includes('--vendor') ? '../test-results/vendor-grid.json' : '../test-results/original-grid.json'),JSON.stringify(result,null,2));

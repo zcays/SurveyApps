@@ -31,18 +31,18 @@ const lensIsActive = () => !S.lens.bypass && (S.lens.k1 !== 0 || S.lens.k2 !== 0
 function cpuLensPass(ctx, cw, ch, k) {
   const I = S.img, L = S.lens, src = cpuSourcePixels(), sw = I.w, sh = I.h;
   const out = ctx.createImageData(cw, ch), o = out.data;
-  const cr = I.crop || {x: -1e9, y: -1e9, w: 2e9, h: 2e9};
+  const cr = cropFrame(I.crop);
   const a = -I.rot * Math.PI / 180, cs = Math.cos(a), sn = Math.sin(a);
   const icx = I.x + sw * I.scale / 2, icy = I.y + sh * I.scale / 2, inv = 1 / k, invScale = 1 / I.scale;
   const lcx = L.cx * sw, lcy = L.cy * sh, R = 0.5 * Math.hypot(sw, sh), k1 = L.k1, k2 = L.k2;
-  const x1 = cr.x + cr.w, y1 = cr.y + cr.h;
 
   for (let y = 0; y < ch; y++) {
     const py = (y + .5) * inv - icy;
     for (let x = 0; x < cw; x++) {
       const px = (x + .5) * inv - icx;
       const qx = (cs * px - sn * py) * invScale + sw / 2, qy = (sn * px + cs * py) * invScale + sh / 2;   // corrected-image px
-      if (qx < cr.x || qy < cr.y || qx > x1 || qy > y1) continue;                                          // outside the crop
+      const ex = qx - cr.cx, ey = qy - cr.cy;                                                              // in the crop rectangle's own (turned) frame
+      if (Math.abs(cr.cos * ex + cr.sin * ey) > cr.hw || Math.abs(cr.cos * ey - cr.sin * ex) > cr.hh) continue;   // outside the crop
       const nx = (qx - lcx) / R, ny = (qy - lcy) / R, r2 = nx * nx + ny * ny, f = 1 - k1 * r2 - k2 * r2 * r2;
       const ux = lcx + nx * f * R, uy = lcy + ny * f * R;                                                  // source px
       if (ux < 0 || uy < 0 || ux > sw || uy > sh) continue;
@@ -63,7 +63,11 @@ function cpuPlainPass(ctx, k) {
   ctx.save();
   ctx.scale(k, k); ctx.translate(I.x + I.w * I.scale / 2, I.y + I.h * I.scale / 2); ctx.rotate(I.rot * Math.PI / 180);
   ctx.scale(I.scale, I.scale); ctx.translate(-I.w / 2, -I.h / 2);
-  if (I.crop) { ctx.beginPath(); ctx.rect(I.crop.x, I.crop.y, I.crop.w, I.crop.h); ctx.clip(); }
+  if (I.crop) {                                                    // clip to the (possibly turned) crop rectangle
+    const cr = cropFrame(I.crop); ctx.beginPath();
+    [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([a, b], n) => { const x = cr.cx + cr.cos * a * cr.hw - cr.sin * b * cr.hh, y = cr.cy + cr.sin * a * cr.hw + cr.cos * b * cr.hh; n ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    ctx.closePath(); ctx.clip();
+  }
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(I.el, 0, 0);
   ctx.restore();

@@ -3,7 +3,9 @@
  * IMPORTANT: cropping affects ONLY THE IMAGE. "Applying" converts the rect to image pixels and stores it in S.img.crop; gl.js
  * then hides everything outside it. The canvas size (S.doc), the grid and the chip scale are never changed by a crop.
  * The crop is non-destructive (Reset crop / Undo bring the picture back) and moves with the image.
- * For a rotated image the stored crop is the bounding box of the selection (crop before rotating for an exact rectangle).
+ * The stored crop is an ORIENTED rectangle in image px: {x, y, w, h, rot}, where rot (degrees) turns the rectangle about its own centre.
+ * A selection drawn on a rotated image therefore keeps the straight, level edges you drew (rot = −image rotation), instead of
+ * turning into a slanted box. Old-style crops without `rot` mean rot = 0. cropFrame() gives renderers its centre / half size / cos / sin.
  * Registers TOOLS.crop and the cropNew / cropMove / cropResize drag types at the bottom of this file. */
 
 const rectHasArea = r => r && r.w >= 1 && r.h >= 1;
@@ -63,16 +65,37 @@ function startCrop() {
 }
 function cancelCrop() { S.crop = null; setTool('move'); }
 
-/** Convert a rect drawn on the canvas into image pixels (undo translate, rotate, scale). Rotated images get the bounding box. */
+/** Renderer view of an image crop: centre, half size and cos/sin of its turn (a huge box when there is no crop). */
+function cropFrame(cr) {
+  if (!cr) return {cx: 0, cy: 0, hw: 1e9, hh: 1e9, cos: 1, sin: 0};
+  const a = (cr.rot || 0) * Math.PI / 180; return {cx: cr.x + cr.w / 2, cy: cr.y + cr.h / 2, hw: cr.w / 2, hh: cr.h / 2, cos: Math.cos(a), sin: Math.sin(a)};
+}
+/** Canvas point → where it comes from BEFORE the distortion (handles + fine mesh): Newton's method on warpPoint(). Canvas px in and out. */
+function unwarpCanvasPoint(x, y) {
+  if (!warpActive()) return [x, y];
+  const tx = x / S.doc.w, ty = y / S.doc.h, P = warpControlPoints(), e = 1e-4; let u = tx, v = ty;
+  for (let i = 0; i < 12; i++) {
+    const p = warpPoint(u, v, P), pu = warpPoint(u + e, v, P), pv = warpPoint(u, v + e, P);
+    const a = (pu.x - p.x) / e, c = (pu.y - p.y) / e, b = (pv.x - p.x) / e, d = (pv.y - p.y) / e, det = a * d - b * c; if (Math.abs(det) < 1e-9) break;
+    const ex = tx - p.x, ey = ty - p.y; u += (d * ex - b * ey) / det; v += (a * ey - c * ex) / det;
+  }
+  return [u * S.doc.w, v * S.doc.h];
+}
+/** Convert a rect drawn on the canvas into the image's crop (undo distortion, translate, rotate, scale).
+ *  Returns {x, y, w, h, rot}: an oriented rectangle in image px, so the edges stay exactly as drawn on a rotated image.
+ *  (With distortion handles the drawn box is not exactly a rectangle in the image; the closest rectangle is used.) */
 function canvasRectToImageRect(r) {
   const I = S.img, a = -I.rot * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
   const cx = I.x + I.w * I.scale / 2, cy = I.y + I.h * I.scale / 2;                  // image centre on the canvas
-  const pts = [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h]].map(([x, y]) => {
-    const dx = x - cx, dy = y - cy;
+  const p = [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h]].map(([x, y]) => {
+    const [ux, uy] = unwarpCanvasPoint(x, y), dx = ux - cx, dy = uy - cy;
     return [(c * dx - s * dy) / I.scale + I.w / 2, (s * dx + c * dy) / I.scale + I.h / 2];
   });
-  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]), x = Math.min(...xs), y = Math.min(...ys);
-  return {x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y};
+  const mx = (p[0][0] + p[1][0] + p[2][0] + p[3][0]) / 4, my = (p[0][1] + p[1][1] + p[2][1] + p[3][1]) / 4;
+  const ex = (p[1][0] - p[0][0] + p[2][0] - p[3][0]) / 2, ey = (p[1][1] - p[0][1] + p[2][1] - p[3][1]) / 2;      // the box's "right" direction in the image
+  const fx = (p[3][0] - p[0][0] + p[2][0] - p[1][0]) / 2, fy = (p[3][1] - p[0][1] + p[2][1] - p[1][1]) / 2;      // its "down" direction
+  const w = Math.hypot(ex, ey), h = Math.hypot(fx, fy), rot = Math.atan2(ey, ex) * 180 / Math.PI;
+  return {x: mx - w / 2, y: my - h / 2, w, h, rot: Math.abs(rot) < 1e-9 ? 0 : rot};
 }
 
 function setImageCrop(crop) {

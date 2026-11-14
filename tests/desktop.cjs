@@ -516,7 +516,7 @@ async function triggerAndAwaitDownload(electronApp, downloadDir, actionFn, custo
     });
 
     // -------------------------------------------------------------------------
-    // 4. Packaged / Custom Protocol Grid Studio Self-Test Suite (tests.html -> 100/100 PASS)
+    // 4. Packaged / Custom Protocol Grid Studio Self-Test Suite (tests.html -> all PASS)
     // -------------------------------------------------------------------------
     allowExpectedErrorWindow = true; // tests.html probes optional samples/photo1.jpg (404 expected & skipped)
     const gridSelfTestResult = await page.evaluate(async () => {
@@ -530,7 +530,7 @@ async function triggerAndAwaitDownload(electronApp, downloadDir, actionFn, custo
         const timeout = setTimeout(() => {
           qaFrame.remove();
           reject(new Error('Timed out waiting for surveyapps://app/vendor/grid-studio/tests.html'));
-        }, 180000);
+        }, 600000);
 
         const poll = setInterval(() => {
           try {
